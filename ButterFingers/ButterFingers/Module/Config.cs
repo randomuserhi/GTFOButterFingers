@@ -18,7 +18,7 @@ namespace ButterFingers.BepInEx {
             probability = configFile.Bind(
                 "Settings",
                 "probability",
-                0.01f,
+                1f / 500f,
                 "Probability that you fumble each roll.");
 
             distancePerRoll = configFile.Bind(

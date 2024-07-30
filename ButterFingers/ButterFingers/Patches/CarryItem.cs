@@ -84,6 +84,11 @@ namespace ButterFingers {
             rb.drag = 0.1f;
             rb.isKinematic = true;
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+
+            PhysicMaterial material = new PhysicMaterial();
+            material.bounciness = 0.5f;
+            material.bounceCombine = PhysicMaterialCombine.Maximum;
+            collider.material = material;
         }
 
         private Vector3 physicsPosition;
@@ -250,6 +255,10 @@ namespace ButterFingers {
                 custom.byteState = oldValue; // Make it interactable after stopping
             }
 
+            sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, PlayerManager.GetLocalPlayerAgent().Owner, position: transform.position, rotation: transform.rotation, node: node, droppedOnFloor: true, forceUpdate: true, custom: custom);
+
+            // Fixes softlock
+            custom.byteState = oldValue;
             sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, PlayerManager.GetLocalPlayerAgent().Owner, position: transform.position, rotation: transform.rotation, node: node, droppedOnFloor: true, forceUpdate: true, custom: custom);
 
             prevTime = Clock.Time;

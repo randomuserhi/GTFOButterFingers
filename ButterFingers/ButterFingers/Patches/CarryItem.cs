@@ -275,6 +275,7 @@ namespace ButterFingers {
             custom.byteState = (byte)eCarryItemCustomState.Inserted_Visible_NotInteractable; // Make it non-interactable
 
             // Additional condition after stillTimer to stop simulating physics if cell is out of bounds
+            // TODO(randomuserhi): Check falling below other dimension boundaries instead of just -2500
             if (stillTimer > 1.5f || transform.position.y < -2500) {
                 rb.velocity = Vector3.zero;
                 rb.isKinematic = true;

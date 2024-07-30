@@ -178,7 +178,7 @@ namespace ButterFingers {
                         if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
                             distanceSqrd = 0;
 
-                            if (UnityEngine.Random.Range(0, 1) < ConfigManager.Probability) {
+                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.Probability) {
                                 performSlip = true;
                                 PlayerBackpackManager.WantToDropItem_Local(player.Inventory.WieldedItem.Get_pItemData(), player.Position, player.Rotation);
                             }

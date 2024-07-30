@@ -249,7 +249,8 @@ namespace ButterFingers {
             custom.byteId = sync.m_stateReplicator.State.custom.byteId;
             custom.byteState = (byte)eCarryItemCustomState.Inserted_Visible_NotInteractable; // Make it non-interactable
 
-            if (stillTimer > 1.5f) {
+            // Additional condition after stillTimer to stop simulating physics if cell is out of bounds
+            if (stillTimer > 1.5f || transform.position.y < -10000) {
                 rb.velocity = Vector3.zero;
                 rb.isKinematic = true;
                 custom.byteState = oldValue; // Make it interactable after stopping

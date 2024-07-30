@@ -81,7 +81,6 @@ namespace ButterFingers {
             rb = gameObject.AddComponent<Rigidbody>();
             collider = gameObject.AddComponent<CapsuleCollider>();
 
-            rb.drag = 0.1f;
             rb.isKinematic = true;
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
@@ -218,6 +217,32 @@ namespace ButterFingers {
             core.m_itemCuller.MoveToNode(node.m_cullNode, transform.position);
         }
 
+        private NM_NoiseData? noise;
+        private float noiseDelay = 0;
+        private void OnCollisionEnter() {
+            if (core == null || sync == null) return;
+            if (rb == null || collider == null) return;
+            if (ConfigManager.MakeNoise == false) return;
+
+            if (rb.isKinematic == true) return;
+
+            if (core.m_courseNode != null && Clock.Time > noiseDelay) {
+                noiseDelay = Clock.Time + 1.5f;
+                noise = new NM_NoiseData() {
+                    noiseMaker = null,
+                    position = transform.position,
+                    radiusMin = 4,
+                    radiusMax = 10,
+                    yScale = 1f,
+                    node = core.m_courseNode,
+                    type = NM_NoiseType.Detectable,
+                    includeToNeightbourAreas = true,
+                    raycastFirstNode = false
+                };
+                NoiseManager.MakeNoise(noise);
+            }
+        }
+
         private byte oldValue = 0;
         private float prevTime = 0;
         private float stillTimer = 0;
@@ -250,7 +275,7 @@ namespace ButterFingers {
             custom.byteState = (byte)eCarryItemCustomState.Inserted_Visible_NotInteractable; // Make it non-interactable
 
             // Additional condition after stillTimer to stop simulating physics if cell is out of bounds
-            if (stillTimer > 1.5f || transform.position.y < -10000) {
+            if (stillTimer > 1.5f || transform.position.y < -2500) {
                 rb.velocity = Vector3.zero;
                 rb.isKinematic = true;
                 custom.byteState = oldValue; // Make it interactable after stopping

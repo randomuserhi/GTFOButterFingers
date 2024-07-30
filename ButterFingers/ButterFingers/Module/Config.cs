@@ -32,6 +32,12 @@ namespace ButterFingers.BepInEx {
                 "force",
                 200f,
                 "The strength of your fumble.");
+
+            makeNoise = configFile.Bind(
+                "Settings",
+                "makeNoise",
+                true,
+                "Should the item make noise that wakes up enemies as it bounces.");
         }
 
         public static bool Debug {
@@ -57,5 +63,11 @@ namespace ButterFingers.BepInEx {
             set { force.Value = value; }
         }
         private static ConfigEntry<float> force;
+
+        public static bool MakeNoise {
+            get { return makeNoise.Value; }
+            set { makeNoise.Value = value; }
+        }
+        private static ConfigEntry<bool> makeNoise;
     }
 }

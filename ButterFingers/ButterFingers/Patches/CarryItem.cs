@@ -1,5 +1,6 @@
 ﻿using AIGraph;
 using API;
+using ButterFingers.BepInEx;
 using HarmonyLib;
 using LevelGeneration;
 using Player;
@@ -173,11 +174,13 @@ namespace ButterFingers {
                         distanceSqrd += (player.Position - prevPosition).sqrMagnitude;
                         prevPosition = player.Position;
 
-                        if (distanceSqrd > 1) {
+                        if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
                             distanceSqrd = 0;
 
-                            performSlip = true;
-                            PlayerBackpackManager.WantToDropItem_Local(player.Inventory.WieldedItem.Get_pItemData(), player.Position, player.Rotation);
+                            if (UnityEngine.Random.Range(0, 1) < ConfigManager.Probability) {
+                                performSlip = true;
+                                PlayerBackpackManager.WantToDropItem_Local(player.Inventory.WieldedItem.Get_pItemData(), player.Position, player.Rotation);
+                            }
                         }
                     }
                 }
@@ -199,7 +202,7 @@ namespace ButterFingers {
 
             Vector3 direction = UnityEngine.Random.insideUnitSphere;
             rb.velocity = Vector3.zero;
-            rb.AddForce(direction * 400.0f);
+            rb.AddForce(direction * ConfigManager.Force);
 
             SetTransform(position, rotation, node);
         }

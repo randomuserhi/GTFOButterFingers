@@ -226,7 +226,6 @@ namespace ButterFingers {
             }
 
             AIG_CourseNode? node = GetNode(transform.position);
-            if (node == null) node = PlayerManager.GetLocalPlayerAgent().CourseNode;
 
             const float minimumVelocity = 0.5f;
             if (rb.velocity.sqrMagnitude < minimumVelocity * minimumVelocity) {

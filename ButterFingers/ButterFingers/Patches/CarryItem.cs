@@ -86,7 +86,7 @@ namespace ButterFingers {
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
             PhysicMaterial material = new PhysicMaterial();
-            material.bounciness = 0.5f;
+            material.bounciness = 0.75f;
             material.bounceCombine = PhysicMaterialCombine.Maximum;
             collider.material = material;
         }

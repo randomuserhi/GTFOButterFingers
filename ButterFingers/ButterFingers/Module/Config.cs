@@ -24,7 +24,7 @@ namespace ButterFingers.BepInEx {
             distancePerRoll = configFile.Bind(
                 "Settings",
                 "distancePerRoll",
-                10.0f,
+                1f,
                 "Distance you need to travel before you may fumble.");
 
             force = configFile.Bind(

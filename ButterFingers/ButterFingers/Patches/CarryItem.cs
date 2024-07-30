@@ -134,12 +134,8 @@ namespace ButterFingers {
             if (rb == null || core == null || sync == null) return;
 
             if (rb.isKinematic == false) {
-                core.m_interact.SetActive(active: false);
-
                 transform.position = physicsPosition;
                 transform.rotation = physicsRotation;
-            } else {
-                savedActiveState = core.m_interact.IsActive;
             }
 
             prevKinematic = rb.isKinematic;
@@ -217,29 +213,17 @@ namespace ButterFingers {
             core.m_itemCuller.MoveToNode(node.m_cullNode, transform.position);
         }
 
+        private byte oldValue = 0;
         private float prevTime = 0;
         private float stillTimer = 0;
-        private bool savedActiveState = true;
-        private bool clean = false;
         private void FixedUpdate() {
             if (core == null || sync == null) return;
             if (rb == null || collider == null) return;
 
-            if (!clean) {
-                if (core.ItemCuller != null && core.ItemCuller.CullBucket != null) {
-                    core.ItemCuller.CullBucket.CleanupLists();
-                    clean = true;
-                }
-            }
-
             if (rb.isKinematic == true) {
-                if (core.m_interact.IsActive != savedActiveState) core.m_interact.SetActive(active: savedActiveState);
+                oldValue = sync.m_stateReplicator.State.custom.byteState;
                 return;
-            } else {
-                savedActiveState = core.m_interact.IsActive;
             }
-
-            if (core.m_interact.IsActive) core.m_interact.SetActive(active: false);
 
             AIG_CourseNode? node = GetNode(transform.position);
 
@@ -256,12 +240,14 @@ namespace ButterFingers {
             }
 
             pItemData_Custom custom = new pItemData_Custom();
+            custom.ammo = sync.m_stateReplicator.State.custom.ammo;
+            custom.byteId = sync.m_stateReplicator.State.custom.byteId;
             custom.byteState = (byte)eCarryItemCustomState.Inserted_Visible_NotInteractable; // Make it non-interactable
 
             if (stillTimer > 1.5f) {
                 rb.velocity = Vector3.zero;
                 rb.isKinematic = true;
-                custom.byteState = (byte)eCarryItemCustomState.Default; // Make it interactable after stopping
+                custom.byteState = oldValue; // Make it interactable after stopping
             }
 
             sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, PlayerManager.GetLocalPlayerAgent().Owner, position: transform.position, rotation: transform.rotation, node: node, droppedOnFloor: true, forceUpdate: true, custom: custom);

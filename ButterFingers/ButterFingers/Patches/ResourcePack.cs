@@ -13,7 +13,6 @@ using UnityEngine;
 namespace ButterFingers {
     [HarmonyPatch]
     internal class ResourcePack : MonoBehaviour {
-
         [HarmonyPatch]
         private static class Patches {
             [HarmonyPatch(typeof(ResourcePackPickup), nameof(ResourcePackPickup.Setup))]
@@ -22,6 +21,7 @@ namespace ButterFingers {
                 ResourcePack physicsPack = new GameObject().AddComponent<ResourcePack>();
                 physicsPack.core = __instance;
                 physicsPack.sync = __instance.GetComponent<LG_PickupItem_Sync>();
+                APILogger.Debug("SETUP?");
             }
 
             [HarmonyPatch(typeof(ResourcePackPickup), nameof(ResourcePackPickup.OnSyncStateChange))]
@@ -30,16 +30,8 @@ namespace ButterFingers {
                 int instance = __instance.GetInstanceID();
                 if (instances.ContainsKey(instance)) {
                     instances[instance].Prefix_OnStatusChange(status, placement, player, isRecall);
-                }
-            }
-
-            [HarmonyPatch(typeof(ResourcePackPickup), nameof(ResourcePackPickup.OnSyncStateChange))]
-            [HarmonyPostfix]
-            [HarmonyPriority(Priority.High)]
-            private static void Postfix_StatusChange(ResourcePackPickup __instance, ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
-                int instance = __instance.GetInstanceID();
-                if (instances.ContainsKey(instance)) {
-                    instances[instance].Postfix_OnStatusChange(status, placement, player, isRecall);
+                } else {
+                    APILogger.Debug("BRUH WHERE IS IT");
                 }
             }
 
@@ -88,7 +80,6 @@ namespace ButterFingers {
             collider.material = material;
         }
 
-        private bool prevKinematic = true;
         private PlayerAgent? carrier = null;
         private void Prefix_OnStatusChange(ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
             if (rb == null) return;
@@ -100,26 +91,18 @@ namespace ButterFingers {
                 carrier = null;
             }
 
-            bool physicsEnded = prevKinematic == false && rb.isKinematic == true;
-
             if (isRecall) {
+                APILogger.Debug("STOP");
                 rb.isKinematic = true;
                 return;
             }
 
-            if (rb.isKinematic && !physicsEnded) {
-                if (performSlip) {
-                    performSlip = false;
+            APILogger.Debug($"{instance} {rb.isKinematic} {performSlip}");
+            if (rb.isKinematic && performSlip) {
+                performSlip = false;
 
-                    Slip(player, placement.position + Vector3.up * 1.5f, placement.rotation, player.m_courseNode);
-                }
+                Slip(player, placement.position + Vector3.up * 1.5f, placement.rotation, player.m_courseNode);
             }
-        }
-
-        private void Postfix_OnStatusChange(ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
-            if (rb == null || core == null || sync == null) return;
-
-            prevKinematic = rb.isKinematic;
         }
 
         private AIG_CourseNode? GetNode(Vector3 position) {
@@ -161,13 +144,10 @@ namespace ButterFingers {
                         distanceSqrd += (player.Position - prevPosition).sqrMagnitude;
                         prevPosition = player.Position;
 
-                        if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
-                            distanceSqrd = 0;
+                        while (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
+                            distanceSqrd -= ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll;
 
                             if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ResourceProbability) {
-                                performSlip = true;
-                                APILogger.Debug("slip");
-
                                 PlayerInventoryBase inventory = player.Inventory;
                                 InventorySlot? inventorySlot = inventory != null ? inventory.WieldedSlot : null;
                                 if (!inventorySlot.HasValue || (int)(inventorySlot.GetValueOrDefault() - 4) > 1) {
@@ -187,8 +167,12 @@ namespace ButterFingers {
                                     InventorySlotAmmo inventorySlotAmmo = PlayerBackpackManager.GetLocalOrSyncBackpack().AmmoStorage.GetInventorySlotAmmo(slot);
                                     pItemData_Custom custom = wieldedItem.GetCustomData();
                                     custom.ammo = inventorySlotAmmo.AmmoInPack;
+                                    performSlip = true;
+                                    APILogger.Debug($"{instance} slip");
+
                                     syncComponent.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: player.transform.position, rotation: player.transform.rotation, node: player.CourseNode, droppedOnFloor: true, forceUpdate: true, custom: custom);
                                 }
+                                break;
                             }
                         }
                     }
@@ -201,11 +185,14 @@ namespace ButterFingers {
             if (core == null || sync == null) return;
             if (rb == null || collider == null) return;
 
+            APILogger.Debug("ACTUALLY SLIP");
+
             rb.isKinematic = false;
 
             prevTime = Clock.Time;
             stillTimer = 0;
             timer = 0;
+            pingTimer = 0;
             visible = true;
             startTracking = false;
 
@@ -224,6 +211,14 @@ namespace ButterFingers {
             transform.rotation = rotation;
             gameObject.transform.SetParent(node.gameObject.transform);
             core.m_itemCuller.MoveToNode(node.m_cullNode, transform.position);
+        }
+
+        private void OnCollisionStay() {
+            if (core == null || sync == null) return;
+            if (rb == null || collider == null) return;
+
+            rb.velocity *= 0.92f;
+            rb.angularVelocity *= 0.92f;
         }
 
         private NM_NoiseData? noise;
@@ -271,7 +266,7 @@ namespace ButterFingers {
 
             AIG_CourseNode? node = GetNode(transform.position);
 
-            const float minimumVelocity = 0.5f;
+            const float minimumVelocity = 1f;
             if (rb.velocity.sqrMagnitude < minimumVelocity * minimumVelocity) {
                 stillTimer += Clock.Time - prevTime;
             } else {
@@ -285,11 +280,13 @@ namespace ButterFingers {
 
             // Additional condition after stillTimer to stop simulating physics if cell is out of bounds
             // TODO(randomuserhi): Check falling below other dimension boundaries instead of just -2500
-            if (stillTimer > 1.5f || transform.position.y < -2500) {
+            if (stillTimer > 1f || transform.position.y < -2500) {
                 timer = 0;
+                pingTimer = 0;
                 visible = true;
                 rb.velocity = Vector3.zero;
                 rb.isKinematic = true;
+                APILogger.Debug("STILL");
             }
 
             if (visible) {
@@ -299,7 +296,7 @@ namespace ButterFingers {
                 }
 
                 if (Clock.Time > pingTimer) {
-                    pingTimer = Clock.Time + 0.5f;
+                    pingTimer = Clock.Time + 1.5f;
                     LocalPlayerAgent player = PlayerManager.GetLocalPlayerAgent().Cast<LocalPlayerAgent>();
                     player.m_pingTarget = core.GetComponent<iPlayerPingTarget>();
                     player.m_pingPos = transform.position;

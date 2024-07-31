@@ -148,8 +148,8 @@ namespace ButterFingers {
                 return;
             }
 
-            if (rb.isKinematic && !physicsEnded) {
-                if (player.GlobalID != PlayerManager.GetLocalPlayerAgent().GlobalID) {
+            if (rb.isKinematic) {
+                if (!physicsEnded && player.GlobalID != PlayerManager.GetLocalPlayerAgent().GlobalID) {
                     rb.isKinematic = true;
                     return;
                 }
@@ -207,12 +207,13 @@ namespace ButterFingers {
                         distanceSqrd += (player.Position - prevPosition).sqrMagnitude;
                         prevPosition = player.Position;
 
-                        if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
-                            distanceSqrd = 0;
+                        while (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
+                            distanceSqrd -= ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll;
 
                             if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.HeavyItemProbability) {
                                 performSlip = true;
                                 PlayerBackpackManager.WantToDropItem_Local(player.Inventory.WieldedItem.Get_pItemData(), player.Position, player.Rotation);
+                                break;
                             }
                         }
                     }
@@ -248,6 +249,14 @@ namespace ButterFingers {
             transform.rotation = rotation;
             gameObject.transform.SetParent(node.gameObject.transform);
             core.m_itemCuller.MoveToNode(node.m_cullNode, transform.position);
+        }
+
+        private void OnCollisionStay() {
+            if (core == null || sync == null) return;
+            if (rb == null || collider == null) return;
+
+            rb.velocity *= 0.92f;
+            rb.angularVelocity *= 0.92f;
         }
 
         private NM_NoiseData? noise;
@@ -291,7 +300,7 @@ namespace ButterFingers {
 
             AIG_CourseNode? node = GetNode(transform.position);
 
-            const float minimumVelocity = 0.5f;
+            const float minimumVelocity = 1f;
             if (rb.velocity.sqrMagnitude < minimumVelocity * minimumVelocity) {
                 stillTimer += Clock.Time - prevTime;
             } else {
@@ -310,7 +319,7 @@ namespace ButterFingers {
 
             // Additional condition after stillTimer to stop simulating physics if cell is out of bounds
             // TODO(randomuserhi): Check falling below other dimension boundaries instead of just -2500
-            if (stillTimer > 1.5f || transform.position.y < -2500) {
+            if (stillTimer > 1f || transform.position.y < -2500) {
                 rb.velocity = Vector3.zero;
                 rb.isKinematic = true;
                 custom.byteState = oldValue; // Make it interactable after stopping

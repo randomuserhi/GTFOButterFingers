@@ -216,7 +216,7 @@ namespace ButterFingers {
             timer = 0;
             visible = true;
             startTracking = false;
-            grace = Clock.Time + 0.4f;
+            grace = Clock.Time + 2f;
 
             Vector3 direction = UnityEngine.Random.insideUnitSphere;
             rb.velocity = Vector3.zero;
@@ -296,6 +296,7 @@ namespace ButterFingers {
             if (stillTimer > 1.5f || transform.position.y < -2500) {
                 timer = 0;
                 visible = true;
+                grace = 0;
                 rb.velocity = Vector3.zero;
                 rb.isKinematic = true;
             }

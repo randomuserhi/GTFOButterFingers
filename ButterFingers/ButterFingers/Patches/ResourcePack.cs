@@ -217,7 +217,7 @@ namespace ButterFingers {
             timer = 0;
             visible = true;
             startTracking = false;
-            grace = Clock.Time + 0.4f;
+            grace = Clock.Time + 2f;
 
             Vector3 direction = UnityEngine.Random.insideUnitSphere;
             rb.velocity = Vector3.zero;
@@ -296,6 +296,7 @@ namespace ButterFingers {
             // TODO(randomuserhi): Check falling below other dimension boundaries instead of just -2500
             if (stillTimer > 1.5f || transform.position.y < -2500) {
                 timer = 0;
+                grace = 0;
                 visible = true;
                 rb.velocity = Vector3.zero;
                 rb.isKinematic = true;

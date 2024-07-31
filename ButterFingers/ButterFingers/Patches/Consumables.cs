@@ -140,8 +140,8 @@ namespace ButterFingers {
                         distanceSqrd += (player.Position - prevPosition).sqrMagnitude;
                         prevPosition = player.Position;
 
-                        while (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
-                            distanceSqrd -= ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll;
+                        if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
+                            distanceSqrd = 0;
 
                             if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ResourceProbability) {
                                 PlayerInventoryBase inventory = player.Inventory;
@@ -168,7 +168,6 @@ namespace ButterFingers {
 
                                     syncComponent.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: player.transform.position, rotation: player.transform.rotation, node: player.CourseNode, droppedOnFloor: true, forceUpdate: true, custom: custom);
                                 }
-                                break;
                             }
                         }
                     }

@@ -207,13 +207,12 @@ namespace ButterFingers {
                         distanceSqrd += (player.Position - prevPosition).sqrMagnitude;
                         prevPosition = player.Position;
 
-                        while (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
-                            distanceSqrd -= ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll;
+                        if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
+                            distanceSqrd = ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll;
 
                             if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.HeavyItemProbability) {
                                 performSlip = true;
                                 PlayerBackpackManager.WantToDropItem_Local(player.Inventory.WieldedItem.Get_pItemData(), player.Position, player.Rotation);
-                                break;
                             }
                         }
                     }

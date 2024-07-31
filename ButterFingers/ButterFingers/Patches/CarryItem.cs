@@ -157,12 +157,7 @@ namespace ButterFingers {
                 if (performSlip) {
                     performSlip = false;
 
-                    if (placement.node.TryGet(out AIG_CourseNode node)) {
-                        Slip(player, placement.position + Vector3.up * 1.5f, placement.rotation, node);
-                    } else {
-                        rb.isKinematic = true;
-                        return;
-                    }
+                    Slip(player, placement.position + Vector3.up * 1.5f, placement.rotation, player.m_courseNode);
                 }
             }
 

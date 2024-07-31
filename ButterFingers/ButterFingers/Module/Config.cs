@@ -15,9 +15,15 @@ namespace ButterFingers.BepInEx {
                 false,
                 "Enables debug messages when true.");
 
-            probability = configFile.Bind(
+            heavyItemProbability = configFile.Bind(
                 "Settings",
-                "probability",
+                "heavyItemProbability",
+                0.1f,
+                "Probability that you fumble each roll.");
+
+            resourceProbability = configFile.Bind(
+                "Settings",
+                "resourceProbability",
                 0.05f,
                 "Probability that you fumble each roll.");
 
@@ -46,11 +52,17 @@ namespace ButterFingers.BepInEx {
         }
         private static ConfigEntry<bool> debug;
 
-        public static float Probability {
-            get { return probability.Value; }
-            set { probability.Value = value; }
+        public static float HeavyItemProbability {
+            get { return heavyItemProbability.Value; }
+            set { heavyItemProbability.Value = value; }
         }
-        private static ConfigEntry<float> probability;
+        private static ConfigEntry<float> heavyItemProbability;
+
+        public static float ResourceProbability {
+            get { return resourceProbability.Value; }
+            set { resourceProbability.Value = value; }
+        }
+        private static ConfigEntry<float> resourceProbability;
 
         public static float DistancePerRoll {
             get { return distancePerRoll.Value; }

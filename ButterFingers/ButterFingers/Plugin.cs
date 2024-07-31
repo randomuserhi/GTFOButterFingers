@@ -16,6 +16,7 @@ public class Plugin : BasePlugin {
         APILogger.Log("Debug is " + (ConfigManager.Debug ? "Enabled" : "Disabled"));
 
         ClassInjector.RegisterTypeInIl2Cpp<CarryItem>();
+        ClassInjector.RegisterTypeInIl2Cpp<ResourcePack>();
     }
 
     private static Harmony? harmony;

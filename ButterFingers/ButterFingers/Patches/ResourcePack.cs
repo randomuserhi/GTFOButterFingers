@@ -1,7 +1,7 @@
 ﻿using AIGraph;
 using API;
-using BepInEx.Unity.IL2CPP.Utils.Collections;
 using ButterFingers.BepInEx;
+using Gear;
 using HarmonyLib;
 using LevelGeneration;
 using Player;
@@ -12,64 +12,31 @@ using UnityEngine;
 
 namespace ButterFingers {
     [HarmonyPatch]
-    internal class CarryItem : MonoBehaviour {
+    internal class ResourcePack : MonoBehaviour {
 
         [HarmonyPatch]
         private static class Patches {
-            private static System.Collections.IEnumerator DelayedEndSession() {
-                // Wait for packet to send
-                yield return new WaitForSeconds(1f);
-
-                // then quit for real
-                patch = false;
-                RundownManager.Current.EndGameSession();
-                patch = true;
-            }
-
-            private static bool patch = true;
-            [HarmonyPatch(typeof(RundownManager), nameof(RundownManager.EndGameSession))]
-            [HarmonyPrefix]
-            private static bool EndGameSession() {
-                if (patch == false) return true;
-
-                APILogger.Debug($"CarryItem Level ended!");
-
-                foreach (CarryItem item in instances.Values) {
-                    item.ForceStop();
-                }
-
-                foreach (ResourcePack item in ResourcePack.instances.Values) {
-                    item.ForceStop();
-                }
-
-                ResourcePack.instances.Clear();
-
-                instances.Clear();
-
-                PlayerManager.GetLocalPlayerAgent().StartCoroutine(DelayedEndSession().WrapToIl2Cpp());
-
-                return false;
-            }
-
-            [HarmonyPatch(typeof(CarryItemPickup_Core), nameof(CarryItemPickup_Core.Setup))]
+            [HarmonyPatch(typeof(ResourcePackPickup), nameof(ResourcePackPickup.Setup))]
             [HarmonyPostfix]
-            private static void Setup(CarryItemPickup_Core __instance) {
-                __instance.gameObject.AddComponent<CarryItem>();
+            private static void Setup(ResourcePackPickup __instance) {
+                ResourcePack physicsPack = new GameObject().AddComponent<ResourcePack>();
+                physicsPack.core = __instance;
+                physicsPack.sync = __instance.GetComponent<LG_PickupItem_Sync>();
             }
 
-            [HarmonyPatch(typeof(CarryItemPickup_Core), nameof(CarryItemPickup_Core.OnSyncStateChange))]
+            [HarmonyPatch(typeof(ResourcePackPickup), nameof(ResourcePackPickup.OnSyncStateChange))]
             [HarmonyPrefix]
-            private static void Prefix_StatusChange(CarryItemPickup_Core __instance, ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
+            private static void Prefix_StatusChange(ResourcePackPickup __instance, ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
                 int instance = __instance.GetInstanceID();
                 if (instances.ContainsKey(instance)) {
                     instances[instance].Prefix_OnStatusChange(status, placement, player, isRecall);
                 }
             }
 
-            [HarmonyPatch(typeof(CarryItemPickup_Core), nameof(CarryItemPickup_Core.OnSyncStateChange))]
+            [HarmonyPatch(typeof(ResourcePackPickup), nameof(ResourcePackPickup.OnSyncStateChange))]
             [HarmonyPostfix]
             [HarmonyPriority(Priority.High)]
-            private static void Postfix_StatusChange(CarryItemPickup_Core __instance, ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
+            private static void Postfix_StatusChange(ResourcePackPickup __instance, ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
                 int instance = __instance.GetInstanceID();
                 if (instances.ContainsKey(instance)) {
                     instances[instance].Postfix_OnStatusChange(status, placement, player, isRecall);
@@ -82,38 +49,28 @@ namespace ButterFingers {
             private static void Update(PlayerAgent __instance) {
                 if (!__instance.Owner.IsLocal || __instance.Owner.IsBot) return;
 
-                foreach (CarryItem item in instances.Values) {
+                foreach (ResourcePack item in instances.Values) {
                     item.Footstep();
-                }
-            }
-
-            [HarmonyPatch(typeof(SNet_SessionHub), nameof(SNet_SessionHub.LeaveHub))]
-            [HarmonyPrefix]
-            private static void LeaveHub() {
-                foreach (CarryItem item in instances.Values) {
-                    item.ForceStop();
                 }
             }
         }
 
         private int instance;
-        private CarryItemPickup_Core? core;
+        private ResourcePackPickup? core;
         private LG_PickupItem_Sync? sync;
         private Rigidbody? rb;
         private CapsuleCollider? collider;
 
-        private static Dictionary<int, CarryItem> instances = new Dictionary<int, CarryItem>();
+        internal static Dictionary<int, ResourcePack> instances = new Dictionary<int, ResourcePack>();
 
         private void Start() {
-            core = GetComponent<CarryItemPickup_Core>();
-            sync = GetComponent<LG_PickupItem_Sync>();
             if (sync == null || core == null) return;
 
             instance = core.GetInstanceID();
 
             instances.Add(instance, this);
 
-            core.gameObject.layer = LayerManager.LAYER_DEBRIS;
+            gameObject.layer = LayerManager.LAYER_DEBRIS;
 
             rb = gameObject.AddComponent<Rigidbody>();
             collider = gameObject.AddComponent<CapsuleCollider>();
@@ -122,18 +79,21 @@ namespace ButterFingers {
             rb.isKinematic = true;
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
+            oldPosition = core.transform.position;
+            oldRotation = core.transform.rotation;
+
             PhysicMaterial material = new PhysicMaterial();
             material.bounciness = 0.75f;
             material.bounceCombine = PhysicMaterialCombine.Maximum;
             collider.material = material;
         }
 
-        private Vector3 physicsPosition;
-        private Quaternion physicsRotation;
         private bool prevKinematic = true;
         private PlayerAgent? carrier = null;
+        private float grace = 0;
         private void Prefix_OnStatusChange(ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
             if (rb == null) return;
+            if (sync == null) return;
 
             if (placement.droppedOnFloor == false && placement.linkedToMachine == false) {
                 carrier = player;
@@ -143,17 +103,14 @@ namespace ButterFingers {
 
             bool physicsEnded = prevKinematic == false && rb.isKinematic == true;
 
-            if (isRecall || status != ePickupItemStatus.PlacedInLevel) {
-                rb.isKinematic = true;
-                return;
-            }
-
-            if (rb.isKinematic && !physicsEnded) {
-                if (player.GlobalID != PlayerManager.GetLocalPlayerAgent().GlobalID) {
+            if (Clock.Time > grace) {
+                if (isRecall || status != ePickupItemStatus.PlacedInLevel) {
                     rb.isKinematic = true;
                     return;
                 }
+            }
 
+            if (rb.isKinematic && !physicsEnded) {
                 if (performSlip) {
                     performSlip = false;
 
@@ -165,20 +122,10 @@ namespace ButterFingers {
                     }
                 }
             }
-
-            if (rb.isKinematic == false) {
-                physicsPosition = transform.position;
-                physicsRotation = transform.rotation;
-            }
         }
 
         private void Postfix_OnStatusChange(ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
             if (rb == null || core == null || sync == null) return;
-
-            if (rb.isKinematic == false) {
-                transform.position = physicsPosition;
-                transform.rotation = physicsRotation;
-            }
 
             prevKinematic = rb.isKinematic;
         }
@@ -193,6 +140,16 @@ namespace ButterFingers {
             return null;
         }
 
+        private static ItemInLevel? GetLevelItemFromItemData(pItemData itemData) {
+            if (!PlayerBackpackManager.TryGetItemInLevelFromItemData(itemData, out var item)) {
+                return null;
+            }
+            if (item.TryCast<ItemInLevel>() == null) {
+                return null;
+            }
+            return item.TryCast<ItemInLevel>();
+        }
+
         private bool startTracking = false;
         private Vector3 prevPosition = Vector3.zero;
         private float distanceSqrd = 0;
@@ -202,7 +159,7 @@ namespace ButterFingers {
             if (sync.m_stateReplicator.State.placement.droppedOnFloor == false) {
                 PlayerAgent player = PlayerManager.GetLocalPlayerAgent();
                 if (carrier.GlobalID == player.GlobalID && player.Inventory != null) {
-                    if (player.Inventory.WieldedSlot == InventorySlot.InLevelCarry) {
+                    if (player.Inventory.WieldedSlot == InventorySlot.ResourcePack) {
                         if (startTracking == false) {
                             startTracking = true;
 
@@ -215,9 +172,31 @@ namespace ButterFingers {
                         if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
                             distanceSqrd = 0;
 
-                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.HeavyItemProbability) {
+                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ResourceProbability) {
                                 performSlip = true;
-                                PlayerBackpackManager.WantToDropItem_Local(player.Inventory.WieldedItem.Get_pItemData(), player.Position, player.Rotation);
+                                APILogger.Debug("slip");
+
+                                PlayerInventoryBase inventory = player.Inventory;
+                                InventorySlot? inventorySlot = inventory != null ? inventory.WieldedSlot : null;
+                                if (!inventorySlot.HasValue || (int)(inventorySlot.GetValueOrDefault() - 4) > 1) {
+                                    return;
+                                }
+                                ItemEquippable wieldedItem = player.Inventory.WieldedItem;
+                                if (wieldedItem == null) {
+                                    return;
+                                }
+                                ItemInLevel? levelItemFromItemData = GetLevelItemFromItemData(wieldedItem.Get_pItemData());
+                                if (levelItemFromItemData == null) {
+                                    return;
+                                }
+                                iPickupItemSync syncComponent = levelItemFromItemData.GetSyncComponent();
+                                if (syncComponent != null) {
+                                    InventorySlot slot = levelItemFromItemData.Get_pItemData().slot;
+                                    InventorySlotAmmo inventorySlotAmmo = PlayerBackpackManager.GetLocalOrSyncBackpack().AmmoStorage.GetInventorySlotAmmo(slot);
+                                    pItemData_Custom custom = wieldedItem.GetCustomData();
+                                    custom.ammo = inventorySlotAmmo.AmmoInPack;
+                                    syncComponent.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: player.transform.position, rotation: player.transform.rotation, node: player.CourseNode, droppedOnFloor: true, forceUpdate: true, custom: custom);
+                                }
                             }
                         }
                     }
@@ -230,13 +209,15 @@ namespace ButterFingers {
             if (core == null || sync == null) return;
             if (rb == null || collider == null) return;
 
-            gameObject.SetActive(true);
-
             rb.isKinematic = false;
 
             prevTime = Clock.Time;
             stillTimer = 0;
+            grace = 0;
+            timer = 0;
+            visible = true;
             startTracking = false;
+            grace = Clock.Time + 0.4f;
 
             Vector3 direction = UnityEngine.Random.insideUnitSphere;
             rb.velocity = Vector3.zero;
@@ -281,16 +262,19 @@ namespace ButterFingers {
             }
         }
 
-        private byte oldValue = 0;
+        private static Vector3 oob = new Vector3(0, -2000f, -2000f);
+        private Vector3 oldPosition = Vector3.zero;
+        private Quaternion oldRotation = Quaternion.identity;
+
         private float prevTime = 0;
         private float stillTimer = 0;
-        private float blink = 0;
+        private float timer = 0;
+        private bool visible = false;
         private void FixedUpdate() {
             if (core == null || sync == null) return;
             if (rb == null || collider == null) return;
 
             if (rb.isKinematic == true) {
-                oldValue = sync.m_stateReplicator.State.custom.byteState;
                 return;
             }
 
@@ -308,56 +292,53 @@ namespace ButterFingers {
                 core.m_itemCuller.MoveToNode(node.m_cullNode, transform.position);
             }
 
-            pItemData_Custom custom = new pItemData_Custom();
-            custom.ammo = sync.m_stateReplicator.State.custom.ammo;
-            custom.byteId = sync.m_stateReplicator.State.custom.byteId;
-            custom.byteState = (byte)eCarryItemCustomState.Inserted_Visible_NotInteractable; // Make it non-interactable
-
             // Additional condition after stillTimer to stop simulating physics if cell is out of bounds
             // TODO(randomuserhi): Check falling below other dimension boundaries instead of just -2500
             if (stillTimer > 1.5f || transform.position.y < -2500) {
+                LocalPlayerAgent player = PlayerManager.GetLocalPlayerAgent().Cast<LocalPlayerAgent>();
+                PlayerPingTarget playerPingTarget = gameObject.AddComponent<PlayerPingTarget>();
+                playerPingTarget.m_pingTargetStyle = eNavMarkerStyle.PlayerPingCarryItem; // TODO
+                player.m_pingTarget = gameObject.GetComponent<iPlayerPingTarget>();
+                player.m_pingPos = transform.position;
+                if (player.m_pingTarget != null) {
+                    player.TriggerMarkerPing(player.m_pingTarget, gameObject, player.m_pingPos);
+                }
+                UnityEngine.Object.Destroy(playerPingTarget);
+
+                timer = 0;
+                visible = true;
                 rb.velocity = Vector3.zero;
                 rb.isKinematic = true;
-                custom.byteState = oldValue; // Make it interactable after stopping
             }
 
-            if (Clock.Time > blink - 0.5f) {
-                custom.byteState = oldValue;
-                sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, PlayerManager.GetLocalPlayerAgent().Owner, position: transform.position, rotation: transform.rotation, node: node, droppedOnFloor: true, forceUpdate: true, custom: custom);
+            if (visible) {
+                if (Clock.Time > timer) {
+                    visible = !visible;
+                    timer = Clock.Time + 0.05f;
+                }
+
+                oldPosition = transform.position;
+                oldRotation = transform.rotation;
+                sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, PlayerManager.GetLocalPlayerAgent().Owner, position: transform.position, rotation: transform.rotation, node: node, droppedOnFloor: true, forceUpdate: true, custom: sync.m_stateReplicator.State.custom);
             } else {
-                sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, PlayerManager.GetLocalPlayerAgent().Owner, position: transform.position, rotation: transform.rotation, node: node, droppedOnFloor: true, forceUpdate: true, custom: custom);
+                if (Clock.Time > timer) {
+                    visible = !visible;
+                    timer = Clock.Time + 0.4f;
+                }
+                sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, PlayerManager.GetLocalPlayerAgent().Owner, position: oob, rotation: transform.rotation, node: node, droppedOnFloor: true, forceUpdate: true, custom: sync.m_stateReplicator.State.custom);
             }
 
-            if (Clock.Time > blink) {
-                blink = Clock.Time + 1f;
-            }
 
             prevTime = Clock.Time;
-        }
 
-        private static bool allowQuitting = false;
-        System.Collections.IEnumerator DelayedQuit() {
-            // Wait for packet to send
-            yield return new WaitForSeconds(1f);
-
-            // then quit for real
-            Environment.FailFast("Gotta go fast!");
         }
 
         private void OnApplicationQuit() {
-            allowQuitting = true;
-
             ForceStop();
-
-            if (allowQuitting) {
-                Application.CancelQuit();
-
-                StartCoroutine(DelayedQuit().WrapToIl2Cpp());
-            }
         }
 
-        private void ForceStop() {
-            APILogger.Debug("CARRY ITEM FORCE STOP");
+        internal void ForceStop() {
+            APILogger.Debug("FORCE STOP RESOURCEPACK");
 
             if (core == null || sync == null) return;
             if (rb == null || collider == null) return;
@@ -365,14 +346,9 @@ namespace ButterFingers {
 
             rb.isKinematic = true;
 
-            pItemData_Custom custom = new pItemData_Custom();
-            custom.ammo = sync.m_stateReplicator.State.custom.ammo;
-            custom.byteId = sync.m_stateReplicator.State.custom.byteId;
-            custom.byteState = oldValue;
-
             AIG_CourseNode? node = PlayerManager.GetLocalPlayerAgent().GoodNodeCluster.m_courseNode;
             node.m_nodeCluster.TryGetClosetPositionInCluster(transform.position, out var closestPosition);
-            sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, PlayerManager.GetLocalPlayerAgent().Owner, position: closestPosition, rotation: transform.rotation, node: node, droppedOnFloor: true, forceUpdate: true, custom: custom);
+            sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, PlayerManager.GetLocalPlayerAgent().Owner, position: closestPosition, rotation: oldRotation, node: core.m_courseNode, droppedOnFloor: true, forceUpdate: true, custom: sync.m_stateReplicator.State.custom);
         }
     }
 }

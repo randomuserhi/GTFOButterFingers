@@ -167,10 +167,16 @@ namespace ButterFingers {
                                     InventorySlotAmmo inventorySlotAmmo = PlayerBackpackManager.GetLocalOrSyncBackpack().AmmoStorage.GetInventorySlotAmmo(slot);
                                     pItemData_Custom custom = wieldedItem.GetCustomData();
                                     custom.ammo = inventorySlotAmmo.AmmoInPack;
-                                    performSlip = true;
-                                    APILogger.Debug($"{instance} slip");
 
-                                    syncComponent.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: player.transform.position, rotation: player.transform.rotation, node: player.CourseNode, droppedOnFloor: true, forceUpdate: true, custom: custom);
+                                    int other = levelItemFromItemData.GetInstanceID();
+                                    if (instances.ContainsKey(other)) {
+                                        instances[other].performSlip = true;
+                                        APILogger.Debug($"{instance} - {other} slip");
+
+                                        syncComponent.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: player.transform.position, rotation: player.transform.rotation, node: player.CourseNode, droppedOnFloor: true, forceUpdate: true, custom: custom);
+                                    } else {
+                                        APILogger.Error($"Could not find resource pack!!!");
+                                    }
                                 }
                             }
                         }

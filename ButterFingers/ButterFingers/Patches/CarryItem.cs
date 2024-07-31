@@ -42,7 +42,12 @@ namespace ButterFingers {
                     item.ForceStop();
                 }
 
+                foreach (Consumable item in Consumable.instances.Values) {
+                    item.ForceStop();
+                }
+
                 ResourcePack.instances.Clear();
+                Consumable.instances.Clear();
 
                 instances.Clear();
 

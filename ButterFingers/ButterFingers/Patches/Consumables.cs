@@ -269,6 +269,7 @@ namespace ButterFingers {
         private float stillTimer = 0;
         private float timer = 0;
         private bool visible = false;
+        private float pingTimer = 0;
         private void FixedUpdate() {
             if (core == null || sync == null) return;
             if (rb == null || collider == null) return;
@@ -307,13 +308,16 @@ namespace ButterFingers {
                     timer = Clock.Time + 0.05f;
                 }
 
-                LocalPlayerAgent player = PlayerManager.GetLocalPlayerAgent().Cast<LocalPlayerAgent>();
-                player.m_pingTarget = core.GetComponent<iPlayerPingTarget>();
-                player.m_pingPos = transform.position;
-                if (player.m_pingTarget != null) {
-                    GuiManager.AttemptSetPlayerPingStatus(player, true, player.m_pingPos, player.m_pingTarget.PingTargetStyle);
-                } else {
-                    GuiManager.AttemptSetPlayerPingStatus(player, true, player.m_pingPos, eNavMarkerStyle.PlayerPingConsumable);
+                if (Clock.Time > pingTimer) {
+                    pingTimer = Clock.Time + 0.5f;
+                    LocalPlayerAgent player = PlayerManager.GetLocalPlayerAgent().Cast<LocalPlayerAgent>();
+                    player.m_pingTarget = core.GetComponent<iPlayerPingTarget>();
+                    player.m_pingPos = transform.position;
+                    if (player.m_pingTarget != null) {
+                        GuiManager.AttemptSetPlayerPingStatus(player, true, player.m_pingPos, player.m_pingTarget.PingTargetStyle);
+                    } else {
+                        GuiManager.AttemptSetPlayerPingStatus(player, true, player.m_pingPos, eNavMarkerStyle.PlayerPingConsumable);
+                    }
                 }
 
                 oldPosition = transform.position;

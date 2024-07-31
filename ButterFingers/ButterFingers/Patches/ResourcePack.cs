@@ -90,7 +90,6 @@ namespace ButterFingers {
 
         private bool prevKinematic = true;
         private PlayerAgent? carrier = null;
-        private float grace = 0;
         private void Prefix_OnStatusChange(ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
             if (rb == null) return;
             if (sync == null) return;
@@ -103,11 +102,9 @@ namespace ButterFingers {
 
             bool physicsEnded = prevKinematic == false && rb.isKinematic == true;
 
-            if (Clock.Time > grace) {
-                if (isRecall || status != ePickupItemStatus.PlacedInLevel) {
-                    rb.isKinematic = true;
-                    return;
-                }
+            if (isRecall) {
+                rb.isKinematic = true;
+                return;
             }
 
             if (rb.isKinematic && !physicsEnded) {
@@ -213,11 +210,9 @@ namespace ButterFingers {
 
             prevTime = Clock.Time;
             stillTimer = 0;
-            grace = 0;
             timer = 0;
             visible = true;
             startTracking = false;
-            grace = Clock.Time + 2f;
 
             Vector3 direction = UnityEngine.Random.insideUnitSphere;
             rb.velocity = Vector3.zero;
@@ -297,7 +292,6 @@ namespace ButterFingers {
             // TODO(randomuserhi): Check falling below other dimension boundaries instead of just -2500
             if (stillTimer > 1.5f || transform.position.y < -2500) {
                 timer = 0;
-                grace = 0;
                 visible = true;
                 rb.velocity = Vector3.zero;
                 rb.isKinematic = true;

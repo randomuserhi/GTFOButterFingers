@@ -27,6 +27,12 @@ namespace ButterFingers.BepInEx {
                 0.05f,
                 "Probability that you fumble each roll.");
 
+            consumableProbability = configFile.Bind(
+                "Settings",
+                "consumableProbability",
+                0.05f,
+                "Probability that you fumble each roll.");
+
             distancePerRoll = configFile.Bind(
                 "Settings",
                 "distancePerRoll",
@@ -63,6 +69,12 @@ namespace ButterFingers.BepInEx {
             set { resourceProbability.Value = value; }
         }
         private static ConfigEntry<float> resourceProbability;
+
+        public static float ConsumableProbability {
+            get { return consumableProbability.Value; }
+            set { consumableProbability.Value = value; }
+        }
+        private static ConfigEntry<float> consumableProbability;
 
         public static float DistancePerRoll {
             get { return distancePerRoll.Value; }

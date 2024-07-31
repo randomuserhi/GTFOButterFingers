@@ -1,7 +1,6 @@
 ﻿using AIGraph;
 using API;
 using ButterFingers.BepInEx;
-using Gear;
 using HarmonyLib;
 using LevelGeneration;
 using Player;
@@ -12,31 +11,31 @@ using UnityEngine;
 
 namespace ButterFingers {
     [HarmonyPatch]
-    internal class ResourcePack : MonoBehaviour {
+    internal class Consumable : MonoBehaviour {
 
         [HarmonyPatch]
         private static class Patches {
-            [HarmonyPatch(typeof(ResourcePackPickup), nameof(ResourcePackPickup.Setup))]
+            [HarmonyPatch(typeof(ConsumablePickup_Core), nameof(ConsumablePickup_Core.Setup))]
             [HarmonyPostfix]
-            private static void Setup(ResourcePackPickup __instance) {
-                ResourcePack physicsPack = new GameObject().AddComponent<ResourcePack>();
+            private static void Setup(ConsumablePickup_Core __instance) {
+                Consumable physicsPack = new GameObject().AddComponent<Consumable>();
                 physicsPack.core = __instance;
                 physicsPack.sync = __instance.GetComponent<LG_PickupItem_Sync>();
             }
 
-            [HarmonyPatch(typeof(ResourcePackPickup), nameof(ResourcePackPickup.OnSyncStateChange))]
+            [HarmonyPatch(typeof(ConsumablePickup_Core), nameof(ConsumablePickup_Core.OnSyncStateChange))]
             [HarmonyPrefix]
-            private static void Prefix_StatusChange(ResourcePackPickup __instance, ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
+            private static void Prefix_StatusChange(ConsumablePickup_Core __instance, ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
                 int instance = __instance.GetInstanceID();
                 if (instances.ContainsKey(instance)) {
                     instances[instance].Prefix_OnStatusChange(status, placement, player, isRecall);
                 }
             }
 
-            [HarmonyPatch(typeof(ResourcePackPickup), nameof(ResourcePackPickup.OnSyncStateChange))]
+            [HarmonyPatch(typeof(ConsumablePickup_Core), nameof(ConsumablePickup_Core.OnSyncStateChange))]
             [HarmonyPostfix]
             [HarmonyPriority(Priority.High)]
-            private static void Postfix_StatusChange(ResourcePackPickup __instance, ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
+            private static void Postfix_StatusChange(ConsumablePickup_Core __instance, ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
                 int instance = __instance.GetInstanceID();
                 if (instances.ContainsKey(instance)) {
                     instances[instance].Postfix_OnStatusChange(status, placement, player, isRecall);
@@ -49,19 +48,19 @@ namespace ButterFingers {
             private static void Update(PlayerAgent __instance) {
                 if (!__instance.Owner.IsLocal || __instance.Owner.IsBot) return;
 
-                foreach (ResourcePack item in instances.Values) {
+                foreach (Consumable item in instances.Values) {
                     item.Footstep();
                 }
             }
         }
 
         private int instance;
-        private ResourcePackPickup? core;
+        private ConsumablePickup_Core? core;
         private LG_PickupItem_Sync? sync;
         private Rigidbody? rb;
         private CapsuleCollider? collider;
 
-        internal static Dictionary<int, ResourcePack> instances = new Dictionary<int, ResourcePack>();
+        internal static Dictionary<int, Consumable> instances = new Dictionary<int, Consumable>();
 
         private void Start() {
             if (sync == null || core == null) return;
@@ -159,7 +158,7 @@ namespace ButterFingers {
             if (sync.m_stateReplicator.State.placement.droppedOnFloor == false) {
                 PlayerAgent player = PlayerManager.GetLocalPlayerAgent();
                 if (carrier.GlobalID == player.GlobalID && player.Inventory != null) {
-                    if (player.Inventory.WieldedSlot == InventorySlot.ResourcePack) {
+                    if (player.Inventory.WieldedSlot == InventorySlot.Consumable) {
                         if (startTracking == false) {
                             startTracking = true;
 
@@ -172,7 +171,7 @@ namespace ButterFingers {
                         if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
                             distanceSqrd = 0;
 
-                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ResourceProbability) {
+                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ConsumableProbability) {
                                 performSlip = true;
                                 APILogger.Debug("slip");
 
@@ -337,7 +336,7 @@ namespace ButterFingers {
         }
 
         internal void ForceStop() {
-            APILogger.Debug("FORCE STOP RESOURCEPACK");
+            APILogger.Debug("FORCE STOP CONSUMABLE");
 
             if (core == null || sync == null) return;
             if (rb == null || collider == null) return;

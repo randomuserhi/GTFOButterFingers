@@ -45,6 +45,14 @@ namespace ButterFingers {
                     item.Footstep();
                 }
             }
+
+            [HarmonyPatch(typeof(PLOC_Downed), nameof(PLOC_Downed.CommonEnter))]
+            [HarmonyPrefix]
+            private static void Prefix_CommonEnter(PLOC_Downed __instance) {
+                foreach (ResourcePack item in instances.Values) {
+                    item.Footstep(force: true);
+                }
+            }
         }
 
         private int instance;
@@ -128,13 +136,13 @@ namespace ButterFingers {
         private bool startTracking = false;
         private Vector3 prevPosition = Vector3.zero;
         private float distanceSqrd = 0;
-        private void Footstep() {
+        private void Footstep(bool force = false) {
             if (sync == null || carrier == null) return;
 
             if (sync.m_stateReplicator.State.placement.droppedOnFloor == false) {
                 PlayerAgent player = PlayerManager.GetLocalPlayerAgent();
                 if (carrier.GlobalID == player.GlobalID && player.Inventory != null) {
-                    if (player.Inventory.WieldedSlot == InventorySlot.ResourcePack) {
+                    if (player.Inventory.WieldedSlot == InventorySlot.ResourcePack || force == true) {
                         if (startTracking == false) {
                             startTracking = true;
 
@@ -144,20 +152,20 @@ namespace ButterFingers {
                         distanceSqrd += (player.Position - prevPosition).sqrMagnitude;
                         prevPosition = player.Position;
 
-                        if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
+                        if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll || force == true) {
                             distanceSqrd = 0;
 
-                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ResourceProbability) {
+                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ResourceProbability || force == true) {
                                 PlayerInventoryBase inventory = player.Inventory;
-                                InventorySlot? inventorySlot = inventory != null ? inventory.WieldedSlot : null;
-                                if (!inventorySlot.HasValue || (int)(inventorySlot.GetValueOrDefault() - 4) > 1) {
+                                PlayerBackpackManager.TryGetItem(player.Owner, InventorySlot.ResourcePack, out BackpackItem bpItem);
+                                if (bpItem.Instance == null) {
                                     return;
                                 }
-                                ItemEquippable wieldedItem = player.Inventory.WieldedItem;
-                                if (wieldedItem == null) {
+                                ItemEquippable item = bpItem.Instance.Cast<ItemEquippable>();
+                                if (item == null) {
                                     return;
                                 }
-                                ItemInLevel? levelItemFromItemData = GetLevelItemFromItemData(wieldedItem.Get_pItemData());
+                                ItemInLevel? levelItemFromItemData = GetLevelItemFromItemData(item.Get_pItemData());
                                 if (levelItemFromItemData == null) {
                                     return;
                                 }
@@ -165,7 +173,7 @@ namespace ButterFingers {
                                 if (syncComponent != null) {
                                     InventorySlot slot = levelItemFromItemData.Get_pItemData().slot;
                                     InventorySlotAmmo inventorySlotAmmo = PlayerBackpackManager.GetLocalOrSyncBackpack().AmmoStorage.GetInventorySlotAmmo(slot);
-                                    pItemData_Custom custom = wieldedItem.GetCustomData();
+                                    pItemData_Custom custom = item.GetCustomData();
                                     custom.ammo = inventorySlotAmmo.AmmoInPack;
 
                                     int other = levelItemFromItemData.GetInstanceID();

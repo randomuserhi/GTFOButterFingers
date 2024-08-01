@@ -102,6 +102,14 @@ namespace ButterFingers {
                     item.ForceStop();
                 }
             }
+
+            [HarmonyPatch(typeof(PLOC_Downed), nameof(PLOC_Downed.CommonEnter))]
+            [HarmonyPrefix]
+            private static void Prefix_CommonEnter(PLOC_Downed __instance) {
+                foreach (CarryItem item in instances.Values) {
+                    item.Footstep(force: true);
+                }
+            }
         }
 
         private int instance;
@@ -199,7 +207,7 @@ namespace ButterFingers {
         private bool startTracking = false;
         private Vector3 prevPosition = Vector3.zero;
         private float distanceSqrd = 0;
-        private void Footstep() {
+        private void Footstep(bool force = false) {
             if (sync == null || carrier == null) return;
 
             if (sync.m_stateReplicator.State.placement.droppedOnFloor == false) {
@@ -215,10 +223,10 @@ namespace ButterFingers {
                         distanceSqrd += (player.Position - prevPosition).sqrMagnitude;
                         prevPosition = player.Position;
 
-                        if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
+                        if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll || force == true) {
                             distanceSqrd = 0;
 
-                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.HeavyItemProbability) {
+                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.HeavyItemProbability || force == true) {
                                 performSlip = true;
                                 PlayerBackpackManager.WantToDropItem_Local(player.Inventory.WieldedItem.Get_pItemData(), player.Position, player.Rotation);
                             }

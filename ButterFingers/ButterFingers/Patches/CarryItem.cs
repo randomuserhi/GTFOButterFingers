@@ -2,6 +2,7 @@
 using API;
 using BepInEx.Unity.IL2CPP.Utils.Collections;
 using ButterFingers.BepInEx;
+using FluffyUnderware.DevTools.Extensions;
 using HarmonyLib;
 using LevelGeneration;
 using Player;
@@ -40,10 +41,12 @@ namespace ButterFingers {
 
                 foreach (ResourcePack item in ResourcePack.instances.Values) {
                     item.ForceStop();
+                    item.gameObject.Destroy();
                 }
 
                 foreach (Consumable item in Consumable.instances.Values) {
                     item.ForceStop();
+                    item.gameObject.Destroy();
                 }
 
                 ResourcePack.instances.Clear();
@@ -213,7 +216,7 @@ namespace ButterFingers {
                         prevPosition = player.Position;
 
                         if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll) {
-                            distanceSqrd = ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll;
+                            distanceSqrd = 0;
 
                             if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.HeavyItemProbability) {
                                 performSlip = true;

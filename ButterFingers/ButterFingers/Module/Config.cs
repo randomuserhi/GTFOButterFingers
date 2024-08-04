@@ -15,6 +15,12 @@ namespace ButterFingers.BepInEx {
                 false,
                 "Enables debug messages when true.");
 
+            cooldown = configFile.Bind(
+                "Settings",
+                "cooldown",
+                12f,
+                "Cooldown between drops in seconds.");
+
             heavyItemProbability = configFile.Bind(
                 "Settings",
                 "heavyItemProbability",
@@ -51,6 +57,12 @@ namespace ButterFingers.BepInEx {
                 true,
                 "Should the item make noise that wakes up enemies as it bounces.");
         }
+
+        public static float Cooldown {
+            get { return cooldown.Value; }
+            set { cooldown.Value = value; }
+        }
+        private static ConfigEntry<float> cooldown;
 
         public static bool Debug {
             get { return debug.Value; }

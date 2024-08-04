@@ -12,6 +12,10 @@ using UnityEngine;
 // TODO(randomuserhi): Clean up code greatly => statically store local player etc...
 
 namespace ButterFingers {
+    internal class Cooldown {
+        public static float timer = 0;
+    }
+
     [HarmonyPatch]
     internal class CarryItem : MonoBehaviour {
 
@@ -89,6 +93,7 @@ namespace ButterFingers {
             [HarmonyPrefix]
             private static void Update(PlayerAgent __instance) {
                 if (!__instance.Owner.IsLocal || __instance.Owner.IsBot) return;
+                if (Clock.Time < Cooldown.timer) return;
 
                 foreach (CarryItem item in instances.Values) {
                     item.Footstep();
@@ -106,10 +111,41 @@ namespace ButterFingers {
             [HarmonyPatch(typeof(PLOC_Downed), nameof(PLOC_Downed.CommonEnter))]
             [HarmonyPrefix]
             private static void Prefix_CommonEnter(PLOC_Downed __instance) {
-                foreach (CarryItem item in instances.Values) {
-                    item.Footstep(force: true);
+                if (!__instance.m_owner.Owner.IsLocal || __instance.m_owner.Owner.IsBot) return;
+
+                PlayerAgent player = PlayerManager.GetLocalPlayerAgent();
+                if (PlayerBackpackManager.TryGetItem(player.Owner, InventorySlot.InLevelCarry, out BackpackItem bpItem)) {
+                    if (bpItem.Instance == null) {
+                        return;
+                    }
+                    ItemEquippable item = bpItem.Instance.Cast<ItemEquippable>();
+                    if (item == null) {
+                        return;
+                    }
+                    ItemInLevel? levelItemFromItemData = GetLevelItemFromItemData(item.Get_pItemData());
+                    if (levelItemFromItemData == null) {
+                        return;
+                    }
+                    int instance = levelItemFromItemData.GetInstanceID();
+                    if (instances.ContainsKey(instance)) {
+                        instances[instance].Footstep(force: true);
+                    }
+
+                    if (GuiManager.MainMenuLayer != null && GuiManager.MainMenuLayer.PageMap != null) {
+                        GuiManager.MainMenuLayer.PageMap.UpdatePlayerData();
+                    }
                 }
             }
+        }
+
+        private static ItemInLevel? GetLevelItemFromItemData(pItemData itemData) {
+            if (!PlayerBackpackManager.TryGetItemInLevelFromItemData(itemData, out var item)) {
+                return null;
+            }
+            if (item.TryCast<ItemInLevel>() == null) {
+                return null;
+            }
+            return item.TryCast<ItemInLevel>();
         }
 
         private int instance;
@@ -139,7 +175,7 @@ namespace ButterFingers {
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
             PhysicMaterial material = new PhysicMaterial();
-            material.bounciness = 0.75f;
+            material.bounciness = 0.4f;
             material.bounceCombine = PhysicMaterialCombine.Maximum;
             collider.material = material;
         }
@@ -208,7 +244,8 @@ namespace ButterFingers {
         private Vector3 prevPosition = Vector3.zero;
         private float distanceSqrd = 0;
         private void Footstep(bool force = false) {
-            if (sync == null || carrier == null) return;
+            if (sync == null || carrier == null || rb == null) return;
+            if (rb.isKinematic == false) return;
 
             if (sync.m_stateReplicator.State.placement.droppedOnFloor == false) {
                 PlayerAgent player = PlayerManager.GetLocalPlayerAgent();
@@ -245,9 +282,11 @@ namespace ButterFingers {
 
             rb.isKinematic = false;
 
+            Cooldown.timer = Clock.Time + ConfigManager.Cooldown;
             prevTime = Clock.Time;
             stillTimer = 0;
             startTracking = false;
+            carrier = null;
 
             Vector3 direction = UnityEngine.Random.insideUnitSphere;
             rb.velocity = Vector3.zero;
@@ -270,8 +309,10 @@ namespace ButterFingers {
             if (core == null || sync == null) return;
             if (rb == null || collider == null) return;
 
-            rb.velocity *= 0.92f;
-            rb.angularVelocity *= 0.92f;
+            if (rb.velocity.y > -0.3f && rb.velocity.y < 0.3f) {
+                rb.velocity *= 0.92f;
+                rb.angularVelocity *= 0.92f;
+            }
         }
 
         private NM_NoiseData? noise;
@@ -315,8 +356,10 @@ namespace ButterFingers {
 
             AIG_CourseNode? node = GetNode(transform.position);
 
+            bool grounded = Physics.Raycast(transform.position, Vector3.down, 1);
+
             const float minimumVelocity = 1f;
-            if (rb.velocity.sqrMagnitude < minimumVelocity * minimumVelocity) {
+            if (rb.velocity.sqrMagnitude < minimumVelocity * minimumVelocity && grounded) {
                 stillTimer += Clock.Time - prevTime;
             } else {
                 stillTimer = 0;

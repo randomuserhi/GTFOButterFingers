@@ -113,6 +113,7 @@ namespace ButterFingers {
         private PlayerAgent? carrier = null;
         private void Prefix_OnStatusChange(ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
             if (rb == null) return;
+            if (player == null) return;
             if (sync == null) return;
 
             if (placement.droppedOnFloor == false && placement.linkedToMachine == false) {
@@ -203,6 +204,11 @@ namespace ButterFingers {
                                             instances[other].performSlip = true;
                                             APILogger.Debug($"{instance} - {other} slip");
                                             syncComponent.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: player.transform.position, rotation: player.transform.rotation, node: player.CourseNode, droppedOnFloor: true, forceUpdate: true, custom: custom);
+
+                                            ResourcePackFirstPerson? rp = item.Cast<ResourcePackFirstPerson>();
+                                            if (rp != null) {
+                                                rp.m_interactApplyResource.m_timerProgressRel = 0;
+                                            }
                                         } else {
                                             APILogger.Error($"Could not find resource pack!!!");
                                         }

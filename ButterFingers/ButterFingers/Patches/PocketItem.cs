@@ -11,21 +11,21 @@ using UnityEngine;
 
 namespace ButterFingers {
     [HarmonyPatch]
-    internal class Consumable : MonoBehaviour {
+    internal class PocketItem : MonoBehaviour {
 
         [HarmonyPatch]
         private static class Patches {
-            [HarmonyPatch(typeof(ConsumablePickup_Core), nameof(ConsumablePickup_Core.Setup))]
+            [HarmonyPatch(typeof(GenericSmallPickupItem_Core), nameof(GenericSmallPickupItem_Core.Setup))]
             [HarmonyPostfix]
-            private static void Setup(ConsumablePickup_Core __instance) {
-                Consumable physicsPack = new GameObject().AddComponent<Consumable>();
+            private static void Setup(GenericSmallPickupItem_Core __instance) {
+                PocketItem physicsPack = new GameObject().AddComponent<PocketItem>();
                 physicsPack.core = __instance;
                 physicsPack.sync = __instance.GetComponent<LG_PickupItem_Sync>();
             }
 
-            [HarmonyPatch(typeof(ConsumablePickup_Core), nameof(ConsumablePickup_Core.OnSyncStateChange))]
+            [HarmonyPatch(typeof(GenericSmallPickupItem_Core), nameof(GenericSmallPickupItem_Core.OnSyncStateChange))]
             [HarmonyPrefix]
-            private static void Prefix_StatusChange(ConsumablePickup_Core __instance, ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
+            private static void Prefix_StatusChange(GenericSmallPickupItem_Core __instance, ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
                 int instance = __instance.GetInstanceID();
                 if (instances.ContainsKey(instance)) {
                     instances[instance].Prefix_OnStatusChange(status, placement, player, isRecall);
@@ -39,7 +39,7 @@ namespace ButterFingers {
                 if (!__instance.Owner.IsLocal || __instance.Owner.IsBot) return;
                 if (Clock.Time < Cooldown.timer) return;
 
-                foreach (Consumable item in instances.Values) {
+                foreach (PocketItem item in instances.Values) {
                     item.Footstep();
                 }
             }
@@ -50,7 +50,7 @@ namespace ButterFingers {
                 if (!__instance.m_owner.Owner.IsLocal || __instance.m_owner.Owner.IsBot) return;
 
                 PlayerAgent player = PlayerManager.GetLocalPlayerAgent();
-                if (PlayerBackpackManager.TryGetItem(player.Owner, InventorySlot.Consumable, out BackpackItem bpItem)) {
+                if (PlayerBackpackManager.TryGetItem(player.Owner, InventorySlot.InPocket, out BackpackItem bpItem)) {
                     if (bpItem.Instance == null) {
                         return;
                     }
@@ -75,12 +75,12 @@ namespace ButterFingers {
         }
 
         private int instance;
-        private ConsumablePickup_Core? core;
+        private GenericSmallPickupItem_Core? core;
         private LG_PickupItem_Sync? sync;
         private Rigidbody? rb;
         private CapsuleCollider? collider;
 
-        internal static Dictionary<int, Consumable> instances = new Dictionary<int, Consumable>();
+        internal static Dictionary<int, PocketItem> instances = new Dictionary<int, PocketItem>();
 
         private void Start() {
             if (sync == null || core == null) return;
@@ -162,47 +162,45 @@ namespace ButterFingers {
             if (sync.m_stateReplicator.State.placement.droppedOnFloor == false) {
                 PlayerAgent player = PlayerManager.GetLocalPlayerAgent();
                 if (carrier.GlobalID == player.GlobalID && player.Inventory != null) {
-                    if (player.Inventory.WieldedSlot == InventorySlot.Consumable || force == true) {
-                        if (startTracking == false) {
-                            startTracking = true;
+                    if (startTracking == false) {
+                        startTracking = true;
 
-                            prevPosition = player.Position;
-                        }
-
-                        distanceSqrd += (player.Position - prevPosition).sqrMagnitude;
                         prevPosition = player.Position;
+                    }
 
-                        if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll || force == true) {
-                            distanceSqrd = 0;
+                    distanceSqrd += (player.Position - prevPosition).sqrMagnitude;
+                    prevPosition = player.Position;
 
-                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ResourceProbability || force == true) {
-                                if (PlayerBackpackManager.TryGetItem(player.Owner, InventorySlot.Consumable, out BackpackItem bpItem)) {
-                                    if (bpItem.Instance == null) {
-                                        return;
-                                    }
-                                    ItemEquippable item = bpItem.Instance.Cast<ItemEquippable>();
-                                    if (item == null) {
-                                        return;
-                                    }
-                                    ItemInLevel? levelItemFromItemData = GetLevelItemFromItemData(item.Get_pItemData());
-                                    if (levelItemFromItemData == null) {
-                                        return;
-                                    }
-                                    iPickupItemSync syncComponent = levelItemFromItemData.GetSyncComponent();
-                                    if (syncComponent != null) {
-                                        InventorySlot slot = levelItemFromItemData.Get_pItemData().slot;
-                                        InventorySlotAmmo inventorySlotAmmo = PlayerBackpackManager.GetLocalOrSyncBackpack().AmmoStorage.GetInventorySlotAmmo(slot);
-                                        pItemData_Custom custom = item.GetCustomData();
-                                        custom.ammo = inventorySlotAmmo.AmmoInPack;
+                    if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll || force == true) {
+                        distanceSqrd = 0;
 
-                                        int other = levelItemFromItemData.GetInstanceID();
-                                        if (instances.ContainsKey(other)) {
-                                            instances[other].performSlip = true;
-                                            APILogger.Debug($"{instance} - {other} slip");
-                                            syncComponent.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: player.transform.position, rotation: player.transform.rotation, node: player.CourseNode, droppedOnFloor: true, forceUpdate: true, custom: custom);
-                                        } else {
-                                            APILogger.Error($"Could not find consumable item!!!");
-                                        }
+                        if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ResourceProbability || force == true) {
+                            if (PlayerBackpackManager.TryGetItem(player.Owner, InventorySlot.Consumable, out BackpackItem bpItem)) {
+                                if (bpItem.Instance == null) {
+                                    return;
+                                }
+                                ItemEquippable item = bpItem.Instance.Cast<ItemEquippable>();
+                                if (item == null) {
+                                    return;
+                                }
+                                ItemInLevel? levelItemFromItemData = GetLevelItemFromItemData(item.Get_pItemData());
+                                if (levelItemFromItemData == null) {
+                                    return;
+                                }
+                                iPickupItemSync syncComponent = levelItemFromItemData.GetSyncComponent();
+                                if (syncComponent != null) {
+                                    InventorySlot slot = levelItemFromItemData.Get_pItemData().slot;
+                                    InventorySlotAmmo inventorySlotAmmo = PlayerBackpackManager.GetLocalOrSyncBackpack().AmmoStorage.GetInventorySlotAmmo(slot);
+                                    pItemData_Custom custom = item.GetCustomData();
+                                    custom.ammo = inventorySlotAmmo.AmmoInPack;
+
+                                    int other = levelItemFromItemData.GetInstanceID();
+                                    if (instances.ContainsKey(other)) {
+                                        instances[other].performSlip = true;
+                                        APILogger.Debug($"{instance} - {other} slip");
+                                        syncComponent.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: player.transform.position, rotation: player.transform.rotation, node: player.CourseNode, droppedOnFloor: true, forceUpdate: true, custom: custom);
+                                    } else {
+                                        APILogger.Error($"Could not find pocket item!!!");
                                     }
                                 }
                             }
@@ -363,7 +361,7 @@ namespace ButterFingers {
         }
 
         internal void ForceStop() {
-            APILogger.Debug("FORCE STOP CONSUMABLE");
+            APILogger.Debug("FORCE STOP POCKET ITEM");
 
             if (core == null || sync == null) return;
             if (rb == null || collider == null) return;

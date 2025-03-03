@@ -186,6 +186,7 @@ namespace ButterFingers {
         private PlayerAgent? carrier = null;
         private void Prefix_OnStatusChange(ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
             if (rb == null) return;
+            if (player == null) return;
 
             if (placement.droppedOnFloor == false && placement.linkedToMachine == false) {
                 carrier = player;

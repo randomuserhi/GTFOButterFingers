@@ -10,18 +10,8 @@ using UnityEngine;
 namespace ButterFingers {
     [HarmonyPatch]
     internal class KeyItem : MonoBehaviour {
-        public static int stopBackpackRemoveCalls = 0;
-
         [HarmonyPatch]
         private static class Patches {
-            [HarmonyPatch(typeof(PlayerBackpackManager), nameof(PlayerBackpackManager.RemoveItem), new Type[] { typeof(SNet_Player), typeof(pItemData) })]
-            [HarmonyPrefix]
-            private static bool BackpackFix() {
-                if (stopBackpackRemoveCalls == 0) return true;
-                --stopBackpackRemoveCalls;
-                return false;
-            }
-
             [HarmonyPatch(typeof(KeyItemPickup_Core), nameof(KeyItemPickup_Core.Setup))]
             [HarmonyPostfix]
             private static void Setup(KeyItemPickup_Core __instance) {
@@ -234,7 +224,7 @@ namespace ButterFingers {
             sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: carrier.transform.position, rotation: carrier.transform.rotation, node: carrier.CourseNode, droppedOnFloor: false, forceUpdate: true, custom: custom);
 
             // For some reason the game makes an extra 2 calls to remove backpack which just shouldnt happen on clients
-            if (!SNet.IsMaster) stopBackpackRemoveCalls = 2;
+            if (!SNet.IsMaster) PocketItem.stopBackpackRemoveCalls = 2;
         }
 
         private bool performSlip = false;

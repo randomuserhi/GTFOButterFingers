@@ -9,8 +9,6 @@ using Player;
 using SNetwork;
 using UnityEngine;
 
-// TODO(randomuserhi): Clean up code greatly => statically store local player etc...
-
 namespace ButterFingers {
     internal class Cooldown {
         public static float timer = 0;

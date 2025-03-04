@@ -7,8 +7,6 @@ using Player;
 using SNetwork;
 using UnityEngine;
 
-// TODO(randomuserhi): Clean up code greatly => statically store local player etc...
-
 namespace ButterFingers {
     [HarmonyPatch]
     internal class KeyItem : MonoBehaviour {
@@ -32,69 +30,58 @@ namespace ButterFingers {
                 }
             }
 
-            // NOTE(randomuserhi): Trigger static update here, cause when item is picked up its object is deactivated so monobehaviour update doesnt run
+            private static bool startTracking = false;
+            private static Vector3 prevPosition = Vector3.zero;
+            private static float distance = 0;
+            private static List<uint> groups = new List<uint>();
+
             [HarmonyPatch(typeof(PlayerAgent), nameof(PlayerAgent.Update))]
             [HarmonyPrefix]
             private static void Update(PlayerAgent __instance) {
                 if (!__instance.Owner.IsLocal || __instance.Owner.IsBot) return;
                 if (Clock.Time < Cooldown.timer) return;
 
-                foreach (KeyItem item in instances.Values) {
-                    Footstep(item);
-                }
-            }
+                if (PlayerBackpackManager.TryGetBackpack(__instance.Owner, out PlayerBackpack backpack)) {
+                    if (backpack.ItemIDToPocketItemGroup.Count == 0) return;
 
-            private static bool startTracking = false;
-            private static Vector3 prevPosition = Vector3.zero;
-            private static float distance = 0;
-            private static void Footstep(KeyItem item, bool force = false) {
-                if (item.sync == null || item.carrier == null || item.rb == null || item.core == null || item.sync == null) return;
-                if (item.rb.isKinematic == false) return;
+                    if (startTracking == false) {
+                        startTracking = true;
 
-                if (item.sync.m_stateReplicator.State.status == ePickupItemStatus.PickedUp) {
-                    PlayerAgent player = PlayerManager.GetLocalPlayerAgent();
-                    if (item.carrier.GlobalID == player.GlobalID && player.Inventory != null) {
-                        if (startTracking == false) {
-                            startTracking = true;
+                        prevPosition = __instance.Position;
+                    }
 
-                            prevPosition = player.Position;
+                    distance += (__instance.Position - prevPosition).magnitude;
+                    prevPosition = __instance.Position;
+
+                    if (distance < ConfigManager.DistancePerRoll) return;
+
+                    distance = 0;
+
+                    if (UnityEngine.Random.Range(0.0f, 1.0f) > ConfigManager.ItemInPocketProbability) return;
+
+                    foreach (uint group in backpack.ItemIDToPocketItemGroup.keys) {
+                        groups.Add(group);
+                    }
+                    Player.PocketItem pitem = backpack.ItemIDToPocketItemGroup[groups[UnityEngine.Random.Range(0, backpack.ItemIDToPocketItemGroup.Count)]][0];
+                    groups.Clear();
+
+                    pItemData fillerData = new pItemData();
+                    fillerData.itemID_gearCRC = pitem.itemID;
+                    fillerData.slot = InventorySlot.InPocket;
+                    fillerData.replicatorRef = pitem.replicatorRef;
+
+                    if (PlayerBackpackManager.TryGetItemInLevelFromItemData(fillerData, out Item item)) {
+                        ItemInLevel? levelItemFromItemData = item.TryCast<ItemInLevel>();
+                        if (levelItemFromItemData == null) {
+                            APILogger.Debug("Death - could not find key item.");
+                            return;
                         }
 
-                        distance += (player.Position - prevPosition).magnitude;
-                        prevPosition = player.Position;
-
-                        if (distance > ConfigManager.DistancePerRoll || force == true) {
-                            distance = 0;
-
-                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ItemInPocketProbability || force == true) {
-                                uint pocketItemID = item.core.ItemDataBlock.persistentID;
-                                if (PlayerBackpackManager.TryGetBackpack(player.Owner, out PlayerBackpack backpack) && backpack.HasPocketItem(pocketItemID)) {
-                                    Player.PocketItem pitem = backpack.ItemIDToPocketItemGroup[pocketItemID][0];
-
-                                    pItemData fillerData = new pItemData();
-                                    fillerData.itemID_gearCRC = pitem.itemID;
-                                    fillerData.slot = InventorySlot.InPocket;
-                                    fillerData.replicatorRef = pitem.replicatorRef;
-
-                                    if (PlayerBackpackManager.TryGetItemInLevelFromItemData(fillerData, out Item itemInLevel)) {
-                                        ItemInLevel? levelItemFromItemData = itemInLevel.TryCast<ItemInLevel>();
-                                        if (levelItemFromItemData == null) {
-                                            APILogger.Debug("Footstep - could not find pocket item.");
-                                            return;
-                                        }
-
-                                        int instance = levelItemFromItemData.GetInstanceID();
-                                        if (instances.ContainsKey(instance)) {
-                                            instances[instance].TriggerSlip();
-                                            Cooldown.timer = Clock.Time + ConfigManager.Cooldown;
-                                        } else {
-                                            APILogger.Debug($"Footstep - could not find pocket item instance {instance}");
-                                        }
-                                    }
-                                } else {
-                                    APILogger.Error($"Footstep - Could not find pocket item!!!");
-                                }
-                            }
+                        int instance = levelItemFromItemData.GetInstanceID();
+                        if (instances.ContainsKey(instance)) {
+                            instances[instance].TriggerSlip();
+                        } else {
+                            APILogger.Debug($"Death - could not find key item instance {instance}");
                         }
                     }
                 }
@@ -116,7 +103,7 @@ namespace ButterFingers {
                         }
                     }
 
-                    APILogger.Debug($"Dropping {pitems.Count} pocket items.");
+                    APILogger.Debug($"Dropping {pitems.Count} key items.");
 
                     foreach (Player.PocketItem pitem in pitems) {
                         pItemData fillerData = new pItemData();
@@ -127,7 +114,7 @@ namespace ButterFingers {
                         if (PlayerBackpackManager.TryGetItemInLevelFromItemData(fillerData, out Item item)) {
                             ItemInLevel? levelItemFromItemData = item.TryCast<ItemInLevel>();
                             if (levelItemFromItemData == null) {
-                                APILogger.Debug("Death - could not find pocket item.");
+                                APILogger.Debug("Death - could not find key item.");
                                 return;
                             }
 
@@ -135,7 +122,7 @@ namespace ButterFingers {
                             if (instances.ContainsKey(instance)) {
                                 instances[instance].TriggerSlip();
                             } else {
-                                APILogger.Debug($"Death - could not find pocket item instance {instance}");
+                                APILogger.Debug($"Death - could not find key item instance {instance}");
                             }
                         }
                     }
@@ -381,7 +368,7 @@ namespace ButterFingers {
         }
 
         internal void ForceStop() {
-            APILogger.Debug("FORCE STOP POCKET ITEM");
+            APILogger.Debug("FORCE STOP KEY ITEM");
 
             if (core == null || sync == null) return;
             if (rb == null || collider == null) return;

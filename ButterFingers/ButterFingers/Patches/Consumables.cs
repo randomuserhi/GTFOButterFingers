@@ -7,8 +7,6 @@ using Player;
 using SNetwork;
 using UnityEngine;
 
-// TODO(randomuserhi): Clean up code greatly => statically store local player etc...
-
 namespace ButterFingers {
     [HarmonyPatch]
     internal class Consumable : MonoBehaviour {

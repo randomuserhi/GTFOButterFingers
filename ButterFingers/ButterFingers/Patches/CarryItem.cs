@@ -266,6 +266,10 @@ namespace ButterFingers {
                             distance = 0;
 
                             if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.HeavyItemProbability || force == true) {
+                                if (!force) {
+                                    // Go on cooldown if this wasn't a force drop
+                                    Cooldown.timer = Clock.Time + ConfigManager.Cooldown;
+                                }
                                 performSlip = true;
                                 PlayerBackpackManager.WantToDropItem_Local(player.Inventory.WieldedItem.Get_pItemData(), player.Position, player.Rotation);
                             }
@@ -284,7 +288,6 @@ namespace ButterFingers {
 
             rb.isKinematic = false;
 
-            Cooldown.timer = Clock.Time + ConfigManager.Cooldown;
             prevTime = Clock.Time;
             stillTimer = 0;
             startTracking = false;

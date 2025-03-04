@@ -198,6 +198,10 @@ namespace ButterFingers {
 
                                         int other = levelItemFromItemData.GetInstanceID();
                                         if (instances.ContainsKey(other)) {
+                                            if (!force) {
+                                                // Go on cooldown if this wasn't a force drop
+                                                Cooldown.timer = Clock.Time + ConfigManager.Cooldown;
+                                            }
                                             instances[other].performSlip = true;
                                             APILogger.Debug($"{instance} - {other} slip");
                                             syncComponent.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: player.transform.position, rotation: player.transform.rotation, node: player.CourseNode, droppedOnFloor: true, forceUpdate: true, custom: custom);
@@ -220,7 +224,6 @@ namespace ButterFingers {
 
             rb.isKinematic = false;
 
-            Cooldown.timer = Clock.Time + ConfigManager.Cooldown;
             prevTime = Clock.Time;
             stillTimer = 0;
             timer = 0;

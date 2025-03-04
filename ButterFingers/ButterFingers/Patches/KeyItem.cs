@@ -40,7 +40,63 @@ namespace ButterFingers {
                 if (Clock.Time < Cooldown.timer) return;
 
                 foreach (KeyItem item in instances.Values) {
-                    item.Footstep();
+                    Footstep(item);
+                }
+            }
+
+            private static bool startTracking = false;
+            private static Vector3 prevPosition = Vector3.zero;
+            private static float distance = 0;
+            private static void Footstep(KeyItem item, bool force = false) {
+                if (item.sync == null || item.carrier == null || item.rb == null || item.core == null || item.sync == null) return;
+                if (item.rb.isKinematic == false) return;
+
+                if (item.sync.m_stateReplicator.State.status == ePickupItemStatus.PickedUp) {
+                    PlayerAgent player = PlayerManager.GetLocalPlayerAgent();
+                    if (item.carrier.GlobalID == player.GlobalID && player.Inventory != null) {
+                        if (startTracking == false) {
+                            startTracking = true;
+
+                            prevPosition = player.Position;
+                        }
+
+                        distance += (player.Position - prevPosition).magnitude;
+                        prevPosition = player.Position;
+
+                        if (distance > ConfigManager.DistancePerRoll || force == true) {
+                            distance = 0;
+
+                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ItemInPocketProbability || force == true) {
+                                uint pocketItemID = item.core.ItemDataBlock.persistentID;
+                                if (PlayerBackpackManager.TryGetBackpack(player.Owner, out PlayerBackpack backpack) && backpack.HasPocketItem(pocketItemID)) {
+                                    Player.PocketItem pitem = backpack.ItemIDToPocketItemGroup[pocketItemID][0];
+
+                                    pItemData fillerData = new pItemData();
+                                    fillerData.itemID_gearCRC = pitem.itemID;
+                                    fillerData.slot = InventorySlot.InPocket;
+                                    fillerData.replicatorRef = pitem.replicatorRef;
+
+                                    if (PlayerBackpackManager.TryGetItemInLevelFromItemData(fillerData, out Item itemInLevel)) {
+                                        ItemInLevel? levelItemFromItemData = itemInLevel.TryCast<ItemInLevel>();
+                                        if (levelItemFromItemData == null) {
+                                            APILogger.Debug("Footstep - could not find pocket item.");
+                                            return;
+                                        }
+
+                                        int instance = levelItemFromItemData.GetInstanceID();
+                                        if (instances.ContainsKey(instance)) {
+                                            instances[instance].TriggerSlip();
+                                            Cooldown.timer = Clock.Time + ConfigManager.Cooldown;
+                                        } else {
+                                            APILogger.Debug($"Footstep - could not find pocket item instance {instance}");
+                                        }
+                                    }
+                                } else {
+                                    APILogger.Error($"Footstep - Could not find pocket item!!!");
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -77,7 +133,7 @@ namespace ButterFingers {
 
                             int instance = levelItemFromItemData.GetInstanceID();
                             if (instances.ContainsKey(instance)) {
-                                instances[instance].Footstep(force: true);
+                                instances[instance].TriggerSlip();
                             } else {
                                 APILogger.Debug($"Death - could not find pocket item instance {instance}");
                             }
@@ -167,42 +223,13 @@ namespace ButterFingers {
             return item.TryCast<ItemInLevel>();
         }
 
-        private bool startTracking = false;
-        private Vector3 prevPosition = Vector3.zero;
-        private float distance = 0;
-        private void Footstep(bool force = false) {
-            if (sync == null || carrier == null || rb == null || core == null || sync == null) return;
-            if (rb.isKinematic == false) return;
+        private void TriggerSlip() {
+            if (sync == null || carrier == null) return;
 
-            if (sync.m_stateReplicator.State.status == ePickupItemStatus.PickedUp) {
-                PlayerAgent player = PlayerManager.GetLocalPlayerAgent();
-                if (carrier.GlobalID == player.GlobalID && player.Inventory != null) {
-                    if (startTracking == false) {
-                        startTracking = true;
-
-                        prevPosition = player.Position;
-                    }
-
-                    distance += (player.Position - prevPosition).magnitude;
-                    prevPosition = player.Position;
-
-                    if (distance > ConfigManager.DistancePerRoll || force == true) {
-                        distance = 0;
-
-                        if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ItemInPocketProbability || force == true) {
-                            uint pocketItemID = core.ItemDataBlock.persistentID;
-                            if (PlayerBackpackManager.TryGetBackpack(player.Owner, out PlayerBackpack backpack) && backpack.HasPocketItem(pocketItemID)) {
-                                performSlip = true;
-                                APILogger.Debug($"{instance} slip");
-                                pItemData_Custom custom = sync.m_stateReplicator.m_currentState.custom;
-                                sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: player.transform.position, rotation: player.transform.rotation, node: player.CourseNode, droppedOnFloor: false, forceUpdate: true, custom: custom);
-                            } else {
-                                APILogger.Error($"Could not find pocket item!!!");
-                            }
-                        }
-                    }
-                }
-            }
+            performSlip = true;
+            APILogger.Debug($"{instance} slip");
+            pItemData_Custom custom = sync.m_stateReplicator.m_currentState.custom;
+            sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: carrier.transform.position, rotation: carrier.transform.rotation, node: carrier.CourseNode, droppedOnFloor: false, forceUpdate: true, custom: custom);
         }
 
         private bool performSlip = false;
@@ -212,13 +239,11 @@ namespace ButterFingers {
 
             rb.isKinematic = false;
 
-            Cooldown.timer = Clock.Time + ConfigManager.Cooldown;
             prevTime = Clock.Time;
             stillTimer = 0;
             timer = 0;
             visible = true;
             pingTimer = 0;
-            startTracking = false;
             carrier = null;
 
             Vector3 direction = UnityEngine.Random.insideUnitSphere;
@@ -337,13 +362,13 @@ namespace ButterFingers {
 
                 oldPosition = transform.position;
                 oldRotation = transform.rotation;
-                sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, PlayerManager.GetLocalPlayerAgent().Owner, position: transform.position, rotation: transform.rotation, node: node, droppedOnFloor: false, forceUpdate: true, custom: sync.m_stateReplicator.State.custom);
+                sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, null, position: transform.position, rotation: transform.rotation, node: node, droppedOnFloor: false, forceUpdate: true, custom: sync.m_stateReplicator.State.custom);
             } else {
                 if (Clock.Time > timer) {
                     visible = !visible;
                     timer = Clock.Time + 0.4f;
                 }
-                sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, PlayerManager.GetLocalPlayerAgent().Owner, position: oob, rotation: transform.rotation, node: node, droppedOnFloor: false, forceUpdate: true, custom: sync.m_stateReplicator.State.custom);
+                sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, null, position: oob, rotation: transform.rotation, node: node, droppedOnFloor: false, forceUpdate: true, custom: sync.m_stateReplicator.State.custom);
             }
 
 
@@ -366,7 +391,7 @@ namespace ButterFingers {
 
             AIG_CourseNode? node = PlayerManager.GetLocalPlayerAgent().GoodNodeCluster.m_courseNode;
             node.m_nodeCluster.TryGetClosetPositionInCluster(transform.position, out var closestPosition);
-            sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, PlayerManager.GetLocalPlayerAgent().Owner, position: closestPosition, rotation: oldRotation, node: core.m_courseNode, droppedOnFloor: false, forceUpdate: true, custom: sync.m_stateReplicator.State.custom);
+            sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, null, position: closestPosition, rotation: oldRotation, node: core.m_courseNode, droppedOnFloor: false, forceUpdate: true, custom: sync.m_stateReplicator.State.custom);
         }
     }
 }

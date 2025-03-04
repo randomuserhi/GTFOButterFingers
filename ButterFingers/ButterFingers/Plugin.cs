@@ -6,6 +6,9 @@ using Il2CppInterop.Runtime.Injection;
 
 namespace ButterFingers.BepInEx;
 
+// TODO(randomuserhi): Refactor code - This entire code base is ugly as fuck
+//                     - Refer to how pocket and key items are done as I should have a TriggerSlip method instead of Footstep etc...
+
 [BepInPlugin(Module.GUID, Module.Name, Module.Version)]
 public class Plugin : BasePlugin {
     public override void Load() {

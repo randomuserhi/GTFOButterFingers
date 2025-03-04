@@ -170,28 +170,27 @@ namespace ButterFingers {
 
         private PlayerAgent? carrier = null;
         private void Prefix_OnStatusChange(ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
-            APILogger.Debug($"isnull: {player == null}");
-
             if (rb == null) return;
-            if (player == null) return;
             if (sync == null) return;
-
-            if (status == ePickupItemStatus.PickedUp && placement.linkedToMachine == false) {
-                carrier = player;
-            } else {
-                carrier = null;
-            }
 
             if (isRecall) {
                 rb.isKinematic = true;
                 return;
             }
 
-            APILogger.Debug($"{instance} {rb.isKinematic} {performSlip}");
-            if (rb.isKinematic && performSlip) {
-                performSlip = false;
+            if (carrier != null) {
+                APILogger.Debug($"{instance} {rb.isKinematic} {performSlip}");
+                if (rb.isKinematic && performSlip) {
+                    performSlip = false;
 
-                Slip(player, placement.position + Vector3.up * 1.5f, placement.rotation, player.m_courseNode);
+                    Slip(carrier, placement.position + Vector3.up * 1.5f, placement.rotation, carrier.m_courseNode);
+                }
+            }
+
+            if (status == ePickupItemStatus.PickedUp && placement.linkedToMachine == false) {
+                carrier = player;
+            } else {
+                carrier = null;
             }
         }
 
@@ -216,15 +215,24 @@ namespace ButterFingers {
         }
 
         private void TriggerSlip() {
-            if (sync == null || carrier == null) return;
+            if (core == null || sync == null || carrier == null) return;
 
             performSlip = true;
             APILogger.Debug($"{instance} slip");
             pItemData_Custom custom = sync.m_stateReplicator.m_currentState.custom;
-            sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: carrier.transform.position, rotation: carrier.transform.rotation, node: carrier.CourseNode, droppedOnFloor: false, forceUpdate: true, custom: custom);
+            sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, null, position: carrier.transform.position, rotation: carrier.transform.rotation, node: carrier.CourseNode, droppedOnFloor: false, forceUpdate: true, custom: custom);
 
-            // For some reason the game makes an extra 2 calls to remove backpack which just shouldnt happen on clients
-            if (!SNet.IsMaster) PocketItem.stopBackpackRemoveCalls = 2;
+            // TODO(randomuserhi): When I refactor, I should make sure that I only perform the physics AFTER recieving the confirm 
+            //                     from host that the item can be removed from backpack (obviously checking that the item being removed matches the one we expect)
+            pItemData_WithOwner itemToRemove = default(pItemData_WithOwner);
+            itemToRemove.owningPlayer.SetPlayer(SNet.LocalPlayer);
+            itemToRemove.data = core.Get_pItemData();
+            if (SNet.IsMaster) {
+                PlayerBackpackManager.Current.m_removeItemPacket.Send(itemToRemove, SNet_ChannelType.GameOrderCritical);
+                PlayerBackpackManager.Current.RemoveItem(itemToRemove);
+            } else {
+                PlayerBackpackManager.Current.m_wantToRemoveItemPacket.Send(itemToRemove, SNet_ChannelType.GameOrderCritical, SNet.Master);
+            }
         }
 
         private bool performSlip = false;

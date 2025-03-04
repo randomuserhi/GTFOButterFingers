@@ -11,21 +11,21 @@ using UnityEngine;
 
 namespace ButterFingers {
     [HarmonyPatch]
-    internal class PocketItem : MonoBehaviour {
+    internal class KeyItem : MonoBehaviour {
 
         [HarmonyPatch]
         private static class Patches {
-            [HarmonyPatch(typeof(GenericSmallPickupItem_Core), nameof(GenericSmallPickupItem_Core.Setup))]
+            [HarmonyPatch(typeof(KeyItemPickup_Core), nameof(KeyItemPickup_Core.Setup))]
             [HarmonyPostfix]
-            private static void Setup(GenericSmallPickupItem_Core __instance) {
-                PocketItem physicsPack = new GameObject().AddComponent<PocketItem>();
+            private static void Setup(KeyItemPickup_Core __instance) {
+                KeyItem physicsPack = new GameObject().AddComponent<KeyItem>();
                 physicsPack.core = __instance;
                 physicsPack.sync = __instance.GetComponent<LG_PickupItem_Sync>();
             }
 
-            [HarmonyPatch(typeof(GenericSmallPickupItem_Core), nameof(GenericSmallPickupItem_Core.OnSyncStateChange))]
+            [HarmonyPatch(typeof(KeyItemPickup_Core), nameof(KeyItemPickup_Core.OnSyncStateChange))]
             [HarmonyPrefix]
-            private static void Prefix_StatusChange(GenericSmallPickupItem_Core __instance, ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
+            private static void Prefix_StatusChange(KeyItemPickup_Core __instance, ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
                 int instance = __instance.GetInstanceID();
                 if (instances.ContainsKey(instance)) {
                     instances[instance].Prefix_OnStatusChange(status, placement, player, isRecall);
@@ -39,7 +39,7 @@ namespace ButterFingers {
                 if (!__instance.Owner.IsLocal || __instance.Owner.IsBot) return;
                 if (Clock.Time < Cooldown.timer) return;
 
-                foreach (PocketItem item in instances.Values) {
+                foreach (KeyItem item in instances.Values) {
                     item.Footstep();
                 }
             }
@@ -90,12 +90,12 @@ namespace ButterFingers {
         }
 
         private int instance;
-        private GenericSmallPickupItem_Core? core;
+        private KeyItemPickup_Core? core;
         private LG_PickupItem_Sync? sync;
         private Rigidbody? rb;
         private CapsuleCollider? collider;
 
-        internal static Dictionary<int, PocketItem> instances = new Dictionary<int, PocketItem>();
+        internal static Dictionary<int, KeyItem> instances = new Dictionary<int, KeyItem>();
 
         private void Start() {
             if (sync == null || core == null) return;

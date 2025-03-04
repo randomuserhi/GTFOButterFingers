@@ -46,6 +46,7 @@ namespace ButterFingers {
 
             [HarmonyPatch(typeof(PLOC_Downed), nameof(PLOC_Downed.CommonEnter))]
             [HarmonyPrefix]
+            [HarmonyWrapSafe]
             private static void Prefix_CommonEnter(PLOC_Downed __instance) {
                 if (!__instance.m_owner.Owner.IsLocal || __instance.m_owner.Owner.IsBot) return;
 
@@ -113,7 +114,7 @@ namespace ButterFingers {
             if (player == null) return;
             if (sync == null) return;
 
-            if (placement.droppedOnFloor == false && placement.linkedToMachine == false) {
+            if (status == ePickupItemStatus.PickedUp && placement.linkedToMachine == false) {
                 carrier = player;
             } else {
                 carrier = null;
@@ -154,12 +155,12 @@ namespace ButterFingers {
 
         private bool startTracking = false;
         private Vector3 prevPosition = Vector3.zero;
-        private float distanceSqrd = 0;
+        private float distance = 0;
         private void Footstep(bool force = false) {
             if (sync == null || carrier == null || rb == null) return;
             if (rb.isKinematic == false) return;
 
-            if (sync.m_stateReplicator.State.placement.droppedOnFloor == false) {
+            if (sync.m_stateReplicator.State.status == ePickupItemStatus.PickedUp) {
                 PlayerAgent player = PlayerManager.GetLocalPlayerAgent();
                 if (carrier.GlobalID == player.GlobalID && player.Inventory != null) {
                     if (player.Inventory.WieldedSlot == InventorySlot.Consumable || force == true) {
@@ -169,13 +170,13 @@ namespace ButterFingers {
                             prevPosition = player.Position;
                         }
 
-                        distanceSqrd += (player.Position - prevPosition).sqrMagnitude;
+                        distance += (player.Position - prevPosition).magnitude;
                         prevPosition = player.Position;
 
-                        if (distanceSqrd > ConfigManager.DistancePerRoll * ConfigManager.DistancePerRoll || force == true) {
-                            distanceSqrd = 0;
+                        if (distance > ConfigManager.DistancePerRoll || force == true) {
+                            distance = 0;
 
-                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ResourceProbability || force == true) {
+                            if (UnityEngine.Random.Range(0.0f, 1.0f) < ConfigManager.ConsumableProbability || force == true) {
                                 if (PlayerBackpackManager.TryGetItem(player.Owner, InventorySlot.Consumable, out BackpackItem bpItem)) {
                                     if (bpItem.Instance == null) {
                                         return;
@@ -327,7 +328,7 @@ namespace ButterFingers {
             if (visible) {
                 if (Clock.Time > timer) {
                     visible = !visible;
-                    timer = Clock.Time + 0.05f;
+                    timer = Clock.Time + 0.02f;
                 }
 
                 if (Clock.Time > pingTimer) {

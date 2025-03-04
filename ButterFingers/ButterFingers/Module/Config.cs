@@ -18,7 +18,7 @@ namespace ButterFingers.BepInEx {
             cooldown = configFile.Bind(
                 "Settings",
                 "cooldown",
-                12f,
+                15f,
                 "Cooldown between drops in seconds.");
 
             heavyItemProbability = configFile.Bind(
@@ -39,10 +39,16 @@ namespace ButterFingers.BepInEx {
                 0.05f,
                 "Probability that you fumble each roll.");
 
+            itemInPocketProbability = configFile.Bind(
+                "Settings",
+                "itemInPocketProbability",
+                0.01f,
+                "Probability that you fumble each roll.");
+
             distancePerRoll = configFile.Bind(
                 "Settings",
                 "distancePerRoll",
-                1f,
+                10f,
                 "Distance you need to travel before you may fumble.");
 
             force = configFile.Bind(
@@ -87,6 +93,11 @@ namespace ButterFingers.BepInEx {
             set { consumableProbability.Value = value; }
         }
         private static ConfigEntry<float> consumableProbability;
+        public static float ItemInPocketProbability {
+            get { return itemInPocketProbability.Value; }
+            set { itemInPocketProbability.Value = value; }
+        }
+        private static ConfigEntry<float> itemInPocketProbability;
 
         public static float DistancePerRoll {
             get { return distancePerRoll.Value; }

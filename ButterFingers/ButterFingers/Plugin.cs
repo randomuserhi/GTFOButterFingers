@@ -19,6 +19,7 @@ public class Plugin : BasePlugin {
         ClassInjector.RegisterTypeInIl2Cpp<ResourcePack>();
         ClassInjector.RegisterTypeInIl2Cpp<Consumable>();
         ClassInjector.RegisterTypeInIl2Cpp<PocketItem>();
+        ClassInjector.RegisterTypeInIl2Cpp<KeyItem>();
     }
 
     private static Harmony? harmony;

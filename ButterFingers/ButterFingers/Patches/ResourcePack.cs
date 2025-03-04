@@ -37,7 +37,7 @@ namespace ButterFingers {
             [HarmonyPatch(typeof(PlayerAgent), nameof(PlayerAgent.Update))]
             [HarmonyPrefix]
             private static void Update(PlayerAgent __instance) {
-                if (!__instance.Owner.IsLocal || __instance.Owner.IsBot) return;
+                if (__instance.Owner.Lookup != SNet.LocalPlayer.Lookup) return;
                 if (Clock.Time < Cooldown.timer) return;
 
                 foreach (ResourcePack item in instances.Values) {

@@ -10,9 +10,18 @@ using UnityEngine;
 namespace ButterFingers {
     [HarmonyPatch]
     internal class KeyItem : MonoBehaviour {
+        public static int stopBackpackRemoveCalls = 0;
 
         [HarmonyPatch]
         private static class Patches {
+            [HarmonyPatch(typeof(PlayerBackpackManager), nameof(PlayerBackpackManager.RemoveItem), new Type[] { typeof(SNet_Player), typeof(pItemData) })]
+            [HarmonyPrefix]
+            private static bool BackpackFix() {
+                if (stopBackpackRemoveCalls == 0) return true;
+                --stopBackpackRemoveCalls;
+                return false;
+            }
+
             [HarmonyPatch(typeof(KeyItemPickup_Core), nameof(KeyItemPickup_Core.Setup))]
             [HarmonyPostfix]
             private static void Setup(KeyItemPickup_Core __instance) {
@@ -38,7 +47,7 @@ namespace ButterFingers {
             [HarmonyPatch(typeof(PlayerAgent), nameof(PlayerAgent.Update))]
             [HarmonyPrefix]
             private static void Update(PlayerAgent __instance) {
-                if (!__instance.Owner.IsLocal || __instance.Owner.IsBot) return;
+                if (__instance.Owner.Lookup != SNet.LocalPlayer.Lookup) return;
                 if (Clock.Time < Cooldown.timer) return;
 
                 if (PlayerBackpackManager.TryGetBackpack(__instance.Owner, out PlayerBackpack backpack)) {
@@ -55,15 +64,19 @@ namespace ButterFingers {
 
                     if (distance < ConfigManager.DistancePerRoll) return;
 
+                    APILogger.Debug($"distance! {distance}");
+
                     distance = 0;
 
                     if (UnityEngine.Random.Range(0.0f, 1.0f) > ConfigManager.ItemInPocketProbability) return;
 
-                    foreach (uint group in backpack.ItemIDToPocketItemGroup.keys) {
+                    foreach (uint group in backpack.ItemIDToPocketItemGroup.Keys) {
                         groups.Add(group);
                     }
                     Player.PocketItem pitem = backpack.ItemIDToPocketItemGroup[groups[UnityEngine.Random.Range(0, backpack.ItemIDToPocketItemGroup.Count)]][0];
                     groups.Clear();
+
+                    APILogger.Debug($"dropped! {pitem.itemID}");
 
                     pItemData fillerData = new pItemData();
                     fillerData.itemID_gearCRC = pitem.itemID;
@@ -73,7 +86,7 @@ namespace ButterFingers {
                     if (PlayerBackpackManager.TryGetItemInLevelFromItemData(fillerData, out Item item)) {
                         ItemInLevel? levelItemFromItemData = item.TryCast<ItemInLevel>();
                         if (levelItemFromItemData == null) {
-                            APILogger.Debug("Death - could not find key item.");
+                            APILogger.Debug("Could not find key item.");
                             return;
                         }
 
@@ -81,7 +94,7 @@ namespace ButterFingers {
                         if (instances.ContainsKey(instance)) {
                             instances[instance].TriggerSlip();
                         } else {
-                            APILogger.Debug($"Death - could not find key item instance {instance}");
+                            APILogger.Debug($"Could not find key item instance {instance} {item.GetComponent<LG_PickupItem_Sync>()?.m_stateReplicator.Replicator.Key}");
                         }
                     }
                 }
@@ -167,6 +180,8 @@ namespace ButterFingers {
 
         private PlayerAgent? carrier = null;
         private void Prefix_OnStatusChange(ePickupItemStatus status, pPickupPlacement placement, PlayerAgent player, bool isRecall) {
+            APILogger.Debug($"isnull: {player == null}");
+
             if (rb == null) return;
             if (player == null) return;
             if (sync == null) return;
@@ -217,6 +232,9 @@ namespace ButterFingers {
             APILogger.Debug($"{instance} slip");
             pItemData_Custom custom = sync.m_stateReplicator.m_currentState.custom;
             sync.AttemptPickupInteraction(ePickupItemInteractionType.Place, SNet.LocalPlayer, position: carrier.transform.position, rotation: carrier.transform.rotation, node: carrier.CourseNode, droppedOnFloor: false, forceUpdate: true, custom: custom);
+
+            // For some reason the game makes an extra 2 calls to remove backpack which just shouldnt happen on clients
+            if (!SNet.IsMaster) stopBackpackRemoveCalls = 2;
         }
 
         private bool performSlip = false;

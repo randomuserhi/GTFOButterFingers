@@ -51,8 +51,20 @@ namespace ButterFingers {
                     item.gameObject.Destroy();
                 }
 
+                foreach (KeyItem item in KeyItem.instances.Values) {
+                    item.ForceStop();
+                    item.gameObject.Destroy();
+                }
+
+                foreach (PocketItem item in PocketItem.instances.Values) {
+                    item.ForceStop();
+                    item.gameObject.Destroy();
+                }
+
                 ResourcePack.instances.Clear();
                 Consumable.instances.Clear();
+                PocketItem.instances.Clear();
+                KeyItem.instances.Clear();
 
                 instances.Clear();
 
@@ -90,7 +102,7 @@ namespace ButterFingers {
             [HarmonyPatch(typeof(PlayerAgent), nameof(PlayerAgent.Update))]
             [HarmonyPrefix]
             private static void Update(PlayerAgent __instance) {
-                if (!__instance.Owner.IsLocal || __instance.Owner.IsBot) return;
+                if (__instance.Owner.Lookup != SNet.LocalPlayer.Lookup) return;
                 if (Clock.Time < Cooldown.timer) return;
 
                 foreach (CarryItem item in instances.Values) {
